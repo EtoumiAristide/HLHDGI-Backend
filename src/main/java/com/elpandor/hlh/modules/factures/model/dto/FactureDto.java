@@ -1,6 +1,7 @@
 package com.elpandor.hlh.modules.factures.model.dto;
 
 import com.elpandor.hlh.modules.factures.model.TypeFacture;
+import jakarta.persistence.Column;
 import lombok.Builder;
 import lombok.Data;
 
@@ -16,6 +17,9 @@ public class FactureDto {
     private LocalDate dateFacture;
     private String nomClient;
     private String lienFichier;
+
+    private String dataSend;
+    private String reponseFNE;
 
     private TypeFacture typeFacture;
 

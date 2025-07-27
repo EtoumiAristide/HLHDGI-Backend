@@ -35,6 +35,10 @@ public class Facture extends AuditModel {
     private LocalDate dateFacture;
     private String nomClient;
     private String lienFichier;
+    @Column(name = "data_send_request", columnDefinition = "TEXT DEFAULT NULL")
+    private String dataSend;
+    @Column(name = "reponse_fne", columnDefinition = "TEXT DEFAULT NULL")
+    private String reponseFNE;
 
     private TypeFacture typeFacture;
 

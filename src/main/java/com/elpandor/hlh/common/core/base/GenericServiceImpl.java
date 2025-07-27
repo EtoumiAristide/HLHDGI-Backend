@@ -3,6 +3,7 @@ package com.elpandor.hlh.common.core.base;
 import lombok.extern.slf4j.Slf4j;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
@@ -38,17 +39,41 @@ public abstract class GenericServiceImpl<E, I, D> implements GenericService<E, I
     }
 
     @Override
-    public List<D> getAll(Integer pageNumber, Integer size) {
+    public List<D> getAll() {
+        log.trace("<== Inside getAll() of generic service ==>");
+
+        List<E> list = repository.findAll();
+
+        log.trace("<== Got the response from the repository from getALL  ==>");
+        return list.stream().map(this::transformEntityToDTO).collect(Collectors.toList());
+    }
+
+    @Override
+    public Page<D> getAllPagined(Integer pageNumber, Integer size) {
         log.trace("<== Inside getAll() of generic service ==>");
 
 
         pageNumber = pageNumber != null ? pageNumber : 0;
-        size = size != null ? size : 1000;
+        size = size != null ? size : 10;
         Pageable page = PageRequest.of(pageNumber, size, Sort.by("id").ascending());
-        List<E> list = repository.findAll(page).getContent();
+        Page<D> pagination = repository.findAll(page).map(this::transformEntityToDTO);
 
         log.trace("<== Got the response from the repository from getALL  ==>");
-        return list.stream().map(this::transformEntityToDTO).collect(Collectors.toList());
+        return pagination;
+    }
+
+    @Override
+    public Page<D> getAllPagined(Integer pageNumber, Integer size, String sortProperty) {
+        log.trace("<== Inside getAll() of generic service ==>");
+
+
+        pageNumber = pageNumber != null ? pageNumber : 0;
+        size = size != null ? size : 10;
+        Pageable page = PageRequest.of(pageNumber, size, Sort.by(sortProperty).ascending());
+        Page<D> pagination = repository.findAll(page).map(this::transformEntityToDTO);
+
+        log.trace("<== Got the response from the repository from getALL  ==>");
+        return pagination;
     }
 
     @Override
