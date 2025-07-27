@@ -47,8 +47,6 @@ public class ApimServiceImpl implements ApimService {
         body.add("grant_type", "client_credentials");
 
         HttpEntity<MultiValueMap<String, String>> request = new HttpEntity<>(body, headers);
-        System.out.println("body "+request.getBody().toString());
-        System.out.println("body "+request.getHeaders().toString());
 
         ResponseEntity<TokenResponse> response = restTemplate.exchange(tokenUrl, HttpMethod.POST, request, TokenResponse.class);
 
