@@ -6,6 +6,7 @@ import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.text.DecimalFormat;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.List;
@@ -56,7 +57,7 @@ public class ExcelFactureExtractor {
                     }
                 }
             }
-            if(numFactureTrouve && dateFactureTrouve) return;
+            if (numFactureTrouve && dateFactureTrouve) return;
         }
     }
 
@@ -239,9 +240,9 @@ public class ExcelFactureExtractor {
                         }
                     } else if (cellValue.startsWith("TVA")) {
                         // Taux TVA (extrait du libellé)
-                        if (cellValue.contains("18.00%")) {
-                            tva.setTaux(18.0);
-                        }
+//                        if (cellValue.contains("18.00%")) {
+//                            tva.setTaux(18.0);
+//                        }
                         // Base TVA (colonne D)
                         Cell baseCell = row.getCell(3);
                         if (baseCell != null && (baseCell.getCellType() == CellType.NUMERIC || baseCell.getCellType() == CellType.FORMULA)) {
@@ -269,8 +270,14 @@ public class ExcelFactureExtractor {
             }
         }
 
+        //Calcul du pourcentage de TDT
+        tdt.setTaux(Double.valueOf(new DecimalFormat("#0.00").format((tdt.getMontant() * 100) / tdt.getBase()).replace(',','.')));
         totaux.setTdt(tdt);
+
+        //Calcul du pourcentage de TVA
+        tva.setTaux(Double.valueOf(new DecimalFormat("#0").format((tva.getMontant() * 100) / tva.getBase()).replace(',','.')));
         totaux.setTva(tva);
+
         facture.setTotauxPayload(totaux);
     }
 
