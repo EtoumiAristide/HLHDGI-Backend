@@ -12,9 +12,10 @@ import org.springframework.web.filter.OncePerRequestFilter;
 
 import java.io.IOException;
 
-public class JwtTokenFilter extends OncePerRequestFilter {
+public class JwtTokenFilter //extends OncePerRequestFilter
+{
 
-    private final JwtTokenProvider tokenProvider;
+    /*private final JwtTokenProvider tokenProvider;
     private final UserDetailsService userDetailsService;
 
     public JwtTokenFilter(JwtTokenProvider tokenProvider, UserDetailsService userDetailsService) {
@@ -54,5 +55,5 @@ public class JwtTokenFilter extends OncePerRequestFilter {
             return bearerToken.substring(7);
         }
         return null;
-    }
+    }*/
 }

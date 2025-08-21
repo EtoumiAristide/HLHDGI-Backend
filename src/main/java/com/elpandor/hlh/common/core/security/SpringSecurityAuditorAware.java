@@ -20,7 +20,7 @@ public class SpringSecurityAuditorAware implements AuditorAware<String> {
                 String currentUserName = authentication.getName();
                 return Optional.of(currentUserName);
             }
-            return Optional.of("unknow");
+            return Optional.of("system");
 
         } else {
             return Optional.of("anonymous");

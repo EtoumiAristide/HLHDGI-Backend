@@ -23,7 +23,7 @@ import java.util.stream.Collectors;
 @Slf4j
 @Component
 public class JwtTokenProvider {
-    @Value("${app.jwt.secret}")
+    /*@Value("${app.jwt.secret}")
     private String jwtSecret;
 
     @Value("${app.jwt.expiration-ms}")
@@ -91,5 +91,5 @@ public class JwtTokenProvider {
             log.error("Erreur token", ex);
         }
         return false;
-    }
+    }*/
 }
