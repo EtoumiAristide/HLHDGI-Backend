@@ -10,10 +10,12 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.core.io.Resource;
+import org.springframework.data.domain.Page;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.web.bind.annotation.*;
@@ -26,6 +28,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 @RestController
@@ -65,7 +68,7 @@ public class OrganisationApi {
     }
 
     @GetMapping
-    public ResponseEntity<List<OrganisationDto>> getAll(@RequestParam(value = "pageNum", required = false) Integer pageNum, @RequestParam(value = "size", required = false) Integer size) {
+    public ResponseEntity<Map<String, Object>> getAll(@RequestParam(value = "pageNum", required = false) Integer pageNum, @RequestParam(value = "size", required = false) Integer size) {
         log.trace("Starting processing getAll request!");
 
         List<OrganisationDto> organisations = organisationService.getAll();
@@ -73,32 +76,50 @@ public class OrganisationApi {
             organisations.forEach(organisationDto -> {
                 organisationDto.setLogo(Utilities.getFileUri(organisationDto.getLogo(), "organisations/logo"));
             });
-
-            return new ResponseEntity<>(organisations, HttpStatus.OK);
+            return Utilities.createSuccessResponse(HttpStatus.OK, organisations, "Liste des entreprise");
         }
 
         log.info("No element found while hitting getAll");
-        return new ResponseEntity<>(HttpStatus.NO_CONTENT);
+//        return new ResponseEntity<>(HttpStatus.NO_CONTENT);
+        return Utilities.createErrorResponse("Aucune donnée trouvé", List.of(), HttpStatus.NO_CONTENT);
+    }
+
+    @GetMapping("/pages")
+    public ResponseEntity<Map<String, Object>> getAllByPage(@RequestParam(value = "pageNum", required = false) Integer pageNum, @RequestParam(value = "size", required = false) Integer size) {
+        log.trace("Starting processing getAll request!");
+
+        Page<OrganisationDto> pages = organisationService.getAllPagined(pageNum, size);
+        List<OrganisationDto> organisationDtos = pages.getContent();
+        if (!organisationDtos.isEmpty()) {
+            pages.getContent().forEach(organisationDto -> {
+                organisationDto.setLogo(Utilities.getFileUri(organisationDto.getLogo(), "organisations/logo"));
+            });
+            return Utilities.createSuccessResponse(HttpStatus.OK, pages, "Liste des entreprises");
+        }
+
+        log.info("No element found while hitting getAll");
+        return Utilities.createErrorResponse("Aucune entreprise trouvé", List.of(), HttpStatus.OK);
     }
 
     @GetMapping("/utilisateur")
-    public ResponseEntity<CompteUtilisateurDto> getByUtilisateur(@AuthenticationPrincipal Jwt jwt) {
+    public ResponseEntity<Map<String, Object>> getByUtilisateur(@AuthenticationPrincipal Jwt jwt) {
         log.trace("Starting processing getAll request!");
         String userId = jwt.getClaim("sub");
         CompteUtilisateurDto organisationUtilisateurDto = organisationService.getOrganisationByUtilisateur(UUID.fromString(userId));
 
         if (organisationUtilisateurDto != null) {
             organisationUtilisateurDto.getOrganisation().setLogo(Utilities.getFileUri(organisationUtilisateurDto.getOrganisation().getLogo(), "organisations/logo"));
-            return new ResponseEntity<>(organisationUtilisateurDto, HttpStatus.OK);
+            return Utilities.createSuccessResponse(HttpStatus.OK, organisationUtilisateurDto, "Liste des entreprise");
         }
 
         log.info("No element found while hitting getAll");
-        return new ResponseEntity<>(HttpStatus.NO_CONTENT);
+        return Utilities.createErrorResponse("Aucune donnée trouvé", List.of(), HttpStatus.NO_CONTENT);
     }
 
 
     @PostMapping(consumes = MediaType.MULTIPART_FORM_DATA_VALUE, produces = MediaType.APPLICATION_JSON_VALUE)
-    public ResponseEntity<OrganisationDto> save(@RequestParam(required = false, value = "image") MultipartFile image, @ModelAttribute OrganisationDto organisationDto) {
+    @PreAuthorize("hasRole('Super-Admin')")
+    public ResponseEntity<Map<String, Object>> save(@RequestParam(required = false, value = "image") MultipartFile image, @ModelAttribute OrganisationDto organisationDto) {
         log.trace("Starting processing Post request!");
         try {
 
@@ -121,13 +142,14 @@ public class OrganisationApi {
 
         } catch (Exception err) {
             log.error("Error Occured while saving, Message : " + err.getMessage() + "; Cause :" + err.getCause());
-            return new ResponseEntity<>(HttpStatus.INTERNAL_SERVER_ERROR);
+            return Utilities.createErrorResponse("Aucune donnée trouvé", List.of(), HttpStatus.INTERNAL_SERVER_ERROR);
         }
-        return new ResponseEntity<>(organisationDto, HttpStatus.CREATED);
+        return Utilities.createSuccessResponse(HttpStatus.CREATED, organisationDto, "Entreprise créé avec succès");
     }
 
     @PutMapping(path = "/{id}")
-    public ResponseEntity<OrganisationDto> update(@PathVariable Integer id, @RequestParam(required = false, value = "image") MultipartFile image, @ModelAttribute OrganisationDto organisationDto) {
+    @PreAuthorize("hasRole('Super-Admin')")
+    public ResponseEntity<Map<String, Object>> update(@PathVariable Integer id, @RequestParam(required = false, value = "image") MultipartFile image, @ModelAttribute OrganisationDto organisationDto) {
 
         log.trace("Starting processing put for id :" + id);
         //Recherche de l'organisation dans la BD
@@ -163,27 +185,33 @@ public class OrganisationApi {
                 organisationDto = organisationService.saveOrUpdate(organisationDto);
             } catch (Exception err) {
                 log.error("Error Occured while saving, Message : " + err.getMessage() + "; Cause :" + err.getCause());
-                return new ResponseEntity<>(HttpStatus.INTERNAL_SERVER_ERROR);
+                return Utilities.createErrorResponse("Un erreur est survenue", List.of(), HttpStatus.INTERNAL_SERVER_ERROR);
+//                return new ResponseEntity<>(HttpStatus.INTERNAL_SERVER_ERROR);
             }
-            return new ResponseEntity<>(organisationDto, HttpStatus.OK);
+//            return new ResponseEntity<>(organisationDto, HttpStatus.OK);
+            return Utilities.createSuccessResponse(HttpStatus.CREATED, organisationDto, "Entreprise modifiée avec succès");
         }
 
         log.info("Id mismatch for model (" + organisationDto + ") and request param :" + id);
-        return new ResponseEntity<>(HttpStatus.NOT_MODIFIED);
+//        return new ResponseEntity<>(HttpStatus.NOT_MODIFIED);
+        return Utilities.createErrorResponse("Modification échouée", List.of(), HttpStatus.NOT_MODIFIED);
     }
 
     @DeleteMapping(path = "/{id}")
-    public ResponseEntity<String> delete(@PathVariable Integer id) {
+    @PreAuthorize("hasRole('Super-Admin')")
+    public ResponseEntity<Map<String, Object>> delete(@PathVariable Integer id) {
         log.trace("Starting  processing of delete rrequest for id :" + id);
 
         if (!organisationService.isExist(id)) {
             log.info("Entity not found while processing the delete request for id :" + id);
-            return new ResponseEntity<>(HttpStatus.NOT_FOUND);
+//            return new ResponseEntity<>(HttpStatus.NOT_FOUND);
+            return Utilities.createErrorResponse("Entreprise avec l'id " + id + " est inexistante", List.of(), HttpStatus.INTERNAL_SERVER_ERROR);
         }
 
         organisationService.delete(id);
         log.info("Entity deleted having id :" + id);
-        return new ResponseEntity<>(HttpStatus.OK);
+//        return new ResponseEntity<>(HttpStatus.OK);
+        return Utilities.createSuccessResponse(HttpStatus.NO_CONTENT, List.of(), "Entreprise supprimée avec succès");
     }
 
     private void initRootPath() {
@@ -227,6 +255,7 @@ public class OrganisationApi {
         try {
             contentType = request.getServletContext().getMimeType(resource.getFile().getAbsolutePath());
         } catch (IOException ex) {
+            ex.printStackTrace();
             log.info("Could not determine file type.");
         }
 

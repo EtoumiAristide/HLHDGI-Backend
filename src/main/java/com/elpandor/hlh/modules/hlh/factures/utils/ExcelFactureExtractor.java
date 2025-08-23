@@ -227,24 +227,25 @@ public class ExcelFactureExtractor {
             for (Cell cell : row) {
                 if (cell.getCellType() == CellType.STRING) {
                     String cellValue = cell.getStringCellValue().trim();
+                    DecimalFormat decimalFormat = new DecimalFormat("#");
 
                     if ("H.T".equalsIgnoreCase(cellValue)) {
                         foundTotalSection = true;
                         // Montant HT (colonne E)
                         Cell htCell = row.getCell(4);
                         if (htCell != null && (htCell.getCellType() == CellType.NUMERIC || htCell.getCellType() == CellType.FORMULA)) {
-                            totaux.setHt(htCell.getNumericCellValue());
+                            totaux.setHt(Double.parseDouble(decimalFormat.format(htCell.getNumericCellValue())));
                         }
                     } else if ("TDT".equalsIgnoreCase(cellValue)) {
                         // Base TDT (colonne D)
                         Cell baseCell = row.getCell(3);
                         if (baseCell != null && (baseCell.getCellType() == CellType.NUMERIC || baseCell.getCellType() == CellType.FORMULA)) {
-                            tdt.setBase(baseCell.getNumericCellValue());
+                            tdt.setBase(Double.parseDouble(decimalFormat.format(baseCell.getNumericCellValue())));
                         }
                         // Montant TDT (colonne E)
                         Cell montantCell = row.getCell(4);
                         if (montantCell != null && (montantCell.getCellType() == CellType.NUMERIC || montantCell.getCellType() == CellType.FORMULA)) {
-                            tdt.setMontant(montantCell.getNumericCellValue());
+                            tdt.setMontant(Double.parseDouble(decimalFormat.format(montantCell.getNumericCellValue())));
                         }
                     } else if (cellValue.startsWith("TVA")) {
                         // Taux TVA (extrait du libellé)
@@ -254,18 +255,18 @@ public class ExcelFactureExtractor {
                         // Base TVA (colonne D)
                         Cell baseCell = row.getCell(3);
                         if (baseCell != null && (baseCell.getCellType() == CellType.NUMERIC || baseCell.getCellType() == CellType.FORMULA)) {
-                            tva.setBase(baseCell.getNumericCellValue());
+                            tva.setBase(Double.parseDouble(decimalFormat.format(baseCell.getNumericCellValue())));
                         }
                         // Montant TVA (colonne E)
                         Cell montantCell = row.getCell(4);
                         if (montantCell != null && (montantCell.getCellType() == CellType.NUMERIC || montantCell.getCellType() == CellType.FORMULA)) {
-                            tva.setMontant(montantCell.getNumericCellValue());
+                            tva.setMontant(Double.parseDouble(decimalFormat.format(montantCell.getNumericCellValue())));
                         }
                     } else if ("Montant TTC".equalsIgnoreCase(cellValue)) {
                         // Montant TTC (colonne E)
                         Cell ttcCell = row.getCell(4);
                         if (ttcCell != null && (ttcCell.getCellType() == CellType.NUMERIC || ttcCell.getCellType() == CellType.FORMULA)) {
-                            totaux.setTtc(ttcCell.getNumericCellValue());
+                            totaux.setTtc(Double.parseDouble(decimalFormat.format(ttcCell.getNumericCellValue())));
                         }
                     } else if ("Mode de paiement".equalsIgnoreCase(cellValue)) {
                         // Mode de paiement (colonne D)

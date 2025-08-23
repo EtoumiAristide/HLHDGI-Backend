@@ -1,6 +1,8 @@
 package com.elpandor.hlh.modules.hlh.factures.rest;
 
 import com.elpandor.hlh.common.service.impl.FileStorageServiceImpl;
+import com.elpandor.hlh.modules.hlh.factures.model.ModePaiement;
+import com.elpandor.hlh.modules.hlh.factures.model.TypeClient;
 import com.elpandor.hlh.modules.hlh.factures.utils.ExcelFactureExtractor;
 import com.elpandor.hlh.common.utils.Utilities;
 import com.elpandor.hlh.modules.hlh.factures.model.TypeFacture;
@@ -16,6 +18,8 @@ import org.springframework.data.domain.Page;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -32,14 +36,14 @@ import java.util.Optional;
 @RestController
 @RequestMapping("api/v1/factures")
 @CrossOrigin(origins = "*", allowedHeaders = "*")
-public class FactureController {
-    private Logger log = LoggerFactory.getLogger(FactureController.class);
+public class FactureApi {
+    private Logger log = LoggerFactory.getLogger(FactureApi.class);
 
     private final FileStorageServiceImpl fileStorageService;
     private final FactureService factureService;
     private final ApimService apimService;
 
-    public FactureController(FileStorageServiceImpl fileStorageService, FactureService factureService, ApimService apimService) {
+    public FactureApi(FileStorageServiceImpl fileStorageService, FactureService factureService, ApimService apimService) {
         this.fileStorageService = fileStorageService;
         this.factureService = factureService;
         this.apimService = apimService;
@@ -85,11 +89,23 @@ public class FactureController {
         return Utilities.createErrorResponse("Aucun Facture trouvé", List.of(), HttpStatus.OK);
     }
 
-    @PreAuthorize("hasRole('ROLE_ADMIN')")
     @PostMapping("/upload")
-    public ResponseEntity<Map<String, Object>> uploadExcelFile(@RequestParam("file") MultipartFile file, @RequestParam(value = "type", defaultValue = "FACTURE_VENTE") String typeFacture) {
+    @PreAuthorize("hasRole('Admin') or hasRole('Agent')")
+    public ResponseEntity<Map<String, Object>> uploadExcelFile(@RequestParam("file") MultipartFile file,
+                                                               @RequestParam(value = "type", defaultValue = "FACTURE_VENTE") String typeFacture,
+                                                               @RequestParam(value = "client", defaultValue = "B2C") String typeClient,
+                                                               @RequestParam(value = "paiement", defaultValue = "cash") String modePaiement,
+                                                               @RequestParam(value = "pointvente", defaultValue = "cash") String pointVente,
+                                                               @AuthenticationPrincipal Jwt jwt) {
         log.trace("Starting processing get request for uploadExcelFile");
         try {
+
+            //Recuperation du group
+            List<String> groups = jwt.getClaim("groups");
+            if (groups == null) groups = List.of();
+            if (groups.isEmpty())
+                return Utilities.createErrorResponse("Entreprise agent inconnue", List.of(), HttpStatus.BAD_REQUEST);
+
             // Process the uploaded file
             if (file.isEmpty()) {
                 log.error("Fichier inexistant!");
@@ -116,7 +132,14 @@ public class FactureController {
             //ExcelParser.parseExcelFile(is);
             ExcelFactureExtractor extractor = new ExcelFactureExtractor();
             List<FacturePayload> factures = extractor.extractFacture(is);
-            factures.forEach(facturePayload -> facturePayload.setTypeFacture(TypeFacture.valueOf(typeFacture)));
+            List<String> finalGroups = groups;
+            factures.forEach(facturePayload -> {
+                facturePayload.setTypeFacture(TypeFacture.valueOf(typeFacture));
+                facturePayload.setTypeClient(TypeClient.valueOf(typeClient));
+                facturePayload.setModePaiement(ModePaiement.valueOf(modePaiement));
+                facturePayload.setEntreprise(finalGroups.get(0));
+                facturePayload.setPointVente(pointVente);
+            });
             //facture.setTypeFacture(TypeFacture.valueOf(typeFacture));
 
 //            System.out.println(facture);
@@ -131,11 +154,23 @@ public class FactureController {
         }
     }
 
-    @PreAuthorize("hasRole('ROLE_ADMIN')")
     @PostMapping
-    public ResponseEntity<Map<String, Object>> save(@RequestParam("file") MultipartFile file, @RequestParam(value = "type", defaultValue = "FACTURE_VENTE") String typeFacture) {
+    @PreAuthorize("hasRole('Admin') or hasRole('Agent')")
+    public ResponseEntity<Map<String, Object>> save(@RequestParam("file") MultipartFile file,
+                                                    @RequestParam(value = "type", defaultValue = "FACTURE_VENTE") String typeFacture,
+                                                    @RequestParam(value = "client", defaultValue = "B2C") String typeClient,
+                                                    @RequestParam(value = "paiement", defaultValue = "cash") String modePaiement,
+                                                    @RequestParam(value = "pointvente", defaultValue = "cash") String pointVente,
+                                                    @AuthenticationPrincipal Jwt jwt) {
         log.trace("Starting processing get request for uploadExcelFile");
         try {
+
+            //Recuperation du group
+            List<String> groups = jwt.getClaim("groups");
+            if (groups == null) groups = List.of();
+            if (groups.isEmpty())
+                return Utilities.createErrorResponse("Entreprise agent inconnue", List.of(), HttpStatus.BAD_REQUEST);
+
             // Process the uploaded file
             if (file.isEmpty()) {
                 log.error("Fichier inexistant!");
@@ -162,7 +197,14 @@ public class FactureController {
             //ExcelParser.parseExcelFile(is);
             ExcelFactureExtractor extractor = new ExcelFactureExtractor();
             List<FacturePayload> factures = extractor.extractFacture(is);
-            factures.forEach(facturePayload -> facturePayload.setTypeFacture(TypeFacture.valueOf(typeFacture)));
+            List<String> finalGroups = groups;
+            factures.forEach(facturePayload -> {
+                facturePayload.setTypeFacture(TypeFacture.valueOf(typeFacture));
+                facturePayload.setTypeClient(TypeClient.valueOf(typeClient));
+                facturePayload.setModePaiement(ModePaiement.valueOf(modePaiement));
+                facturePayload.setEntreprise(finalGroups.get(0));
+                facturePayload.setPointVente(pointVente);
+            });
             //facture.setTypeFacture(TypeFacture.valueOf(typeFacture));
 
 //            System.out.println(facture);
@@ -181,7 +223,9 @@ public class FactureController {
                             .dateFacture(LocalDate.parse(facture.getDateFacture(), DateTimeFormatter.ofPattern("dd/MM/yyyy")))
                             .nomClient(facture.getClientPayload().getNom())
                             .lienFichier(storeName)
-                            .typeFacture(TypeFacture.valueOf(typeFacture))
+                            .typeFacture(facture.getTypeFacture())
+                            .typeClient(facture.getTypeClient())
+                            .modePaiement(facture.getModePaiement())
                             .dataSend(request)
                             .reponseFNE(response.getBody())
                             .build();
@@ -272,6 +316,7 @@ public class FactureController {
     }*/
 
     @DeleteMapping(path = "/{id}")
+    @PreAuthorize("hasRole('Admin') or hasRole('Agent')")
     public ResponseEntity<Map<String, Object>> delete(@PathVariable Integer id) {
         log.trace("Starting  processing of delete request for id :" + id);
 

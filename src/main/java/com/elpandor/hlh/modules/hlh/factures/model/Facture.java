@@ -2,6 +2,7 @@ package com.elpandor.hlh.modules.hlh.factures.model;
 
 
 import com.elpandor.hlh.common.entities.AuditModel;
+import com.elpandor.hlh.modules.parametrage.organisations.model.PointVente;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
@@ -32,6 +33,7 @@ public class Facture extends AuditModel {
     private Integer id;
 
     private String numFacture;
+    private String reference;
     private LocalDate dateFacture;
     private String nomClient;
     private String lienFichier;
@@ -43,6 +45,12 @@ public class Facture extends AuditModel {
     private String reponseFNE;
 
     private TypeFacture typeFacture;
+    private TypeClient typeClient;
+    private ModePaiement modePaiement;
+
+    @ManyToOne
+    @JoinColumn(name = "point_vente_id")
+    private PointVente pointVente;
 
     @Column(name = "isdelete")
     private Boolean isdelete;

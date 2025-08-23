@@ -1,4 +1,4 @@
-package com.elpandor.hlh.modules.hlh.factures.utils;
+package com.elpandor.hlh.common.utils;
 
 import lombok.Builder;
 import lombok.Data;
