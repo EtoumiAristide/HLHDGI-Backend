@@ -1,8 +1,8 @@
-package com.elpandor.hlh.modules.hlh.factures.service.impl;
+package com.elpandor.hlh.modules.hlh.service.impl;
 
-import com.elpandor.hlh.modules.hlh.factures.model.dto.payload.FacturePayload;
-import com.elpandor.hlh.modules.hlh.factures.model.dto.payload.TokenResponse;
-import com.elpandor.hlh.modules.hlh.factures.service.ApimService;
+import com.elpandor.hlh.modules.hlh.model.dto.payload.FacturePayload;
+import com.elpandor.hlh.modules.hlh.model.dto.payload.TokenResponse;
+import com.elpandor.hlh.modules.hlh.service.ApimService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.*;

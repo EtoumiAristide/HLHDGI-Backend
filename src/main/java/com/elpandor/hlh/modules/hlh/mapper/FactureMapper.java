@@ -1,7 +1,7 @@
-package com.elpandor.hlh.modules.hlh.factures.mapper;
+package com.elpandor.hlh.modules.hlh.mapper;
 
-import com.elpandor.hlh.modules.hlh.factures.model.Facture;
-import com.elpandor.hlh.modules.hlh.factures.model.dto.FactureDto;
+import com.elpandor.hlh.modules.hlh.model.Facture;
+import com.elpandor.hlh.modules.hlh.model.dto.FactureDto;
 import org.mapstruct.*;
 
 @Mapper(unmappedTargetPolicy = ReportingPolicy.IGNORE, componentModel = MappingConstants.ComponentModel.SPRING)

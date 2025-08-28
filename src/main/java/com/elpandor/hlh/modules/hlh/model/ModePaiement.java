@@ -1,4 +1,4 @@
-package com.elpandor.hlh.modules.hlh.factures.model;
+package com.elpandor.hlh.modules.hlh.model;
 
 public enum ModePaiement {
 

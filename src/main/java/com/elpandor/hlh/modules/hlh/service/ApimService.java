@@ -1,7 +1,7 @@
-package com.elpandor.hlh.modules.hlh.factures.service;
+package com.elpandor.hlh.modules.hlh.service;
 
-import com.elpandor.hlh.modules.hlh.factures.model.dto.payload.FacturePayload;
-import com.elpandor.hlh.modules.hlh.factures.model.dto.payload.TokenResponse;
+import com.elpandor.hlh.modules.hlh.model.dto.payload.FacturePayload;
+import com.elpandor.hlh.modules.hlh.model.dto.payload.TokenResponse;
 import org.springframework.http.ResponseEntity;
 
 public interface ApimService {

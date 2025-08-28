@@ -5,6 +5,7 @@ import com.elpandor.hlh.common.utils.Utilities;
 import com.elpandor.hlh.modules.parametrage.organisations.dto.OrganisationDto;
 import com.elpandor.hlh.modules.parametrage.organisations.dto.PointVenteDto;
 import com.elpandor.hlh.modules.parametrage.organisations.dto.PointVenteEntreprise;
+import com.elpandor.hlh.modules.parametrage.organisations.service.OrganisationService;
 import com.elpandor.hlh.modules.parametrage.organisations.service.PointVenteService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -13,6 +14,8 @@ import org.springframework.data.domain.Page;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.web.bind.annotation.*;
 
 import java.nio.file.Path;
@@ -28,6 +31,7 @@ public class PointVenteApi {
     private Logger log = LoggerFactory.getLogger(PointVenteApi.class);
 
     private final PointVenteService pointVenteService;
+    private final OrganisationService organisationService;
 
     private final FileStorageService fileStorageService;
 
@@ -37,8 +41,9 @@ public class PointVenteApi {
     private Path root;
 
     @Autowired
-    public PointVenteApi(PointVenteService pointVenteService, FileStorageService fileStorageService) {
+    public PointVenteApi(PointVenteService pointVenteService, OrganisationService organisationService, FileStorageService fileStorageService) {
         this.pointVenteService = pointVenteService;
+        this.organisationService = organisationService;
         this.fileStorageService = fileStorageService;
     }
 
@@ -84,18 +89,23 @@ public class PointVenteApi {
         return Utilities.createErrorResponse("Aucun type carte trouvé", List.of(), HttpStatus.OK);
     }
 
-    @GetMapping("sortbyEntreprise")
-    public ResponseEntity<Map<String, Object>> getAllByEntreprise() {
+    @GetMapping("byEntreprise")
+    public ResponseEntity<Map<String, Object>> getAllByEntreprise(@AuthenticationPrincipal Jwt jwt) {
         log.trace("Starting processing getAll request!");
 
-        List<PointVenteDto> pointVentes = pointVenteService.getAll();
-        List<PointVenteEntreprise> pointVenteEntreprises = new ArrayList<>();
-        if (pointVentes != null && !pointVentes.isEmpty()) {
+        //Recuperation du group
+        List<String> groups = jwt.getClaim("groups");
+        String entreprise = "";
+        OrganisationDto organisationDto = null;
+        if (groups != null) {
+            entreprise = groups.get(0);
+            organisationDto = organisationService.findByRaisonSocial(entreprise);
+        }
 
-            initDataForGrid(pointVentes, pointVenteEntreprises);
-
+        List<PointVenteDto> pointVentes = organisationDto != null ? pointVenteService.getAllByOrganosation(organisationDto.getId()) : List.of();
+        if (!pointVentes.isEmpty()) {
 //            return new ResponseEntity<>(pointVenteEntreprises, HttpStatus.OK);
-            return Utilities.createSuccessResponse(HttpStatus.OK, pointVenteEntreprises, "Liste des points de vente");
+            return Utilities.createSuccessResponse(HttpStatus.OK, pointVentes, "Liste des points de vente");
         }
 
         log.info("No element found while hitting getAll");

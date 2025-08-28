@@ -1,20 +1,22 @@
-package com.elpandor.hlh.modules.hlh.factures.rest;
+package com.elpandor.hlh.modules.hlh.rest;
 
 import com.elpandor.hlh.common.service.impl.FileStorageServiceImpl;
-import com.elpandor.hlh.modules.hlh.factures.model.ModePaiement;
-import com.elpandor.hlh.modules.hlh.factures.model.TypeClient;
-import com.elpandor.hlh.modules.hlh.factures.utils.ExcelFactureExtractor;
+import com.elpandor.hlh.modules.hlh.model.ModePaiement;
+import com.elpandor.hlh.modules.hlh.model.TypeClient;
+import com.elpandor.hlh.modules.hlh.utils.ExcelFactureExtractor;
 import com.elpandor.hlh.common.utils.Utilities;
-import com.elpandor.hlh.modules.hlh.factures.model.TypeFacture;
-import com.elpandor.hlh.modules.hlh.factures.model.dto.FactureDto;
-import com.elpandor.hlh.modules.hlh.factures.model.dto.payload.FacturePayload;
-import com.elpandor.hlh.modules.hlh.factures.model.dto.payload.TokenResponse;
-import com.elpandor.hlh.modules.hlh.factures.service.ApimService;
-import com.elpandor.hlh.modules.hlh.factures.service.FactureService;
+import com.elpandor.hlh.modules.hlh.model.TypeFacture;
+import com.elpandor.hlh.modules.hlh.model.dto.FactureDto;
+import com.elpandor.hlh.modules.hlh.model.dto.payload.FacturePayload;
+import com.elpandor.hlh.modules.hlh.model.dto.payload.TokenResponse;
+import com.elpandor.hlh.modules.hlh.service.ApimService;
+import com.elpandor.hlh.modules.hlh.service.FactureService;
 import io.swagger.v3.core.util.Json;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -76,10 +78,32 @@ public class FactureApi {
     }
 
     @GetMapping("/pages")
-    public ResponseEntity<Map<String, Object>> getAllByPage(@RequestParam(value = "pageNum", required = false) Integer pageNum, @RequestParam(value = "size", required = false) Integer size) {
+    public ResponseEntity<Map<String, Object>> getAllByPage(@RequestParam(value = "pageNum", defaultValue = "0", required = false) Integer pageNum, @RequestParam(value = "size", defaultValue = "10", required = false) Integer size) {
         log.trace("Starting processing getAll request!");
 
         Page<FactureDto> pages = factureService.getAllPagined(pageNum, size);
+        List<FactureDto> typeCartes = pages.getContent();
+        if (!typeCartes.isEmpty()) {
+            return Utilities.createSuccessResponse(HttpStatus.OK, pages, "Liste des types d'intervention");
+        }
+
+        log.info("No element found while hitting getAll");
+        return Utilities.createErrorResponse("Aucun Facture trouvé", List.of(), HttpStatus.OK);
+    }
+
+    @GetMapping("/byentreprise")
+    public ResponseEntity<Map<String, Object>> getAllByEntreprise(@RequestParam(value = "pageNum", defaultValue = "0", required = false) Integer pageNum, @RequestParam(value = "size", defaultValue = "10", required = false) Integer size, @AuthenticationPrincipal Jwt jwt) {
+        log.trace("Starting processing getAll request!");
+
+        Pageable pageable = PageRequest.of(pageNum, size);
+
+        //Recuperation du group
+        List<String> groups = jwt.getClaim("groups");
+        String entreprise = "";
+        if (groups != null) entreprise = groups.get(0);
+//        System.out.println(entreprise);
+
+        Page<FactureDto> pages = factureService.findByEntreprise(pageable, entreprise);
         List<FactureDto> typeCartes = pages.getContent();
         if (!typeCartes.isEmpty()) {
             return Utilities.createSuccessResponse(HttpStatus.OK, pages, "Liste des types d'intervention");

@@ -1,4 +1,4 @@
-package com.elpandor.hlh.modules.hlh.factures.model.dto.payload;
+package com.elpandor.hlh.modules.hlh.model.dto.payload;
 
 import lombok.Data;
 import org.springframework.web.multipart.MultipartFile;

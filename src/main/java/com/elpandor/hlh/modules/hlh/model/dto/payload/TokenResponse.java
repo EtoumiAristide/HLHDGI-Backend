@@ -1,4 +1,4 @@
-package com.elpandor.hlh.modules.hlh.factures.model.dto.payload;
+package com.elpandor.hlh.modules.hlh.model.dto.payload;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
 import lombok.Data;

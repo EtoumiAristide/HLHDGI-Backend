@@ -1,4 +1,4 @@
-package com.elpandor.hlh.modules.hlh.factures.utils;
+package com.elpandor.hlh.modules.hlh.utils;
 
 import org.apache.poi.ss.usermodel.*;
 import org.slf4j.Logger;
@@ -19,14 +19,6 @@ public class ExcelParser {
             if (row.getRowNum() == 0) {
                 continue; // Skip header row
             }
-
-            System.out.println(getCellValueAsString(row.getCell(0)));
-            System.out.println(getCellValueAsString(row.getCell(1)));
-            System.out.println(getCellValueAsString(row.getCell(2)));
-            System.out.println(getCellValueAsString(row.getCell(3)));
-            System.out.println(getCellValueAsString(row.getCell(4)));
-            // Add more fields as needed
-
         }
 
         workbook.close();
