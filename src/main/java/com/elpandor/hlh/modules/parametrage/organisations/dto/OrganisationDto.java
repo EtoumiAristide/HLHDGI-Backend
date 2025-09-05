@@ -23,5 +23,9 @@ public class OrganisationDto {
 
     private String sigle;
 
+    private Integer indexLectureFichier;
+    private Boolean isOrderedByPaiementMethod;
+    private Boolean isPrixUnitaireDefined;
+
 //    private MultipartFile image;
 }

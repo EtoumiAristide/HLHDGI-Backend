@@ -13,16 +13,23 @@ import java.util.List;
 
 public class ExcelFactureExtractor {
 
-    public List<FacturePayload> extractFacture(InputStream is) throws IOException {
+    public List<FacturePayload> extractFacture(InputStream is, Integer indexLectureFichier) throws IOException {
 
         List<FacturePayload> factures = new ArrayList<>();
 
         Workbook workbook = new XSSFWorkbook(is);
 
-        for (int i = 0; i < workbook.getNumberOfSheets(); i++) {
+        /*int indexLecture = switch (entreprise) {
+            case "HOTEL AND LUXURY HOUSING" -> 0;
+            case "SIA RESTAURATION RAPIDE COTE D'IVOIRE", "BK AEROPORT" -> 2;
+            default -> 0;
+        };*/
+
+        for (int i = indexLectureFichier; i < workbook.getNumberOfSheets(); i++) {
             Sheet sheet = workbook.getSheetAt(i); // Première feuille
             FacturePayload facture = new FacturePayload();
 
+            facture.setSheetName(sheet.getSheetName());
             // Extraction des informations de base
             extractHeaderInfo(sheet, facture);
 
@@ -87,14 +94,14 @@ public class ExcelFactureExtractor {
                         if ("SOCIETE".equalsIgnoreCase(cellValue.trim()) || "CLIENT".equalsIgnoreCase(cellValue.trim())) {
                             // Le nom du client est dans la cellule suivante
                             Cell clientCell = row.getCell(cell.getColumnIndex() + 2);
-                            if (clientCell != null) {
-                                //System.out.println("clientCell.getStringCellValue() "+clientCell.getStringCellValue());
+                            if (clientCell != null && !clientCell.getStringCellValue().trim().isEmpty()) {
+//                                System.out.println("clientCell.getStringCellValue() "+clientCell.getStringCellValue());
                                 client.setNom(clientCell.getStringCellValue().trim());
                             }
                         } else if ("N°CC".equalsIgnoreCase(cellValue.trim())) {
                             // Le numéro CC est dans la cellule suivante
                             Cell ccCell = row.getCell(cell.getColumnIndex() + 2);
-                            if (ccCell != null) {
+                            if (ccCell != null && !ccCell.getStringCellValue().trim().isEmpty()) {
                                 client.setNumeroCC(ccCell.getStringCellValue().trim());
                             }
                             // On sort après avoir trouvé le numéro CC
@@ -125,7 +132,10 @@ public class ExcelFactureExtractor {
             if (foundProductHeader) break;
         }
 
+//        System.out.println("foundProductHeader "+foundProductHeader);
+
         if (!foundProductHeader) {
+//            System.out.println();
             facture.setLignes(lignes);
             return;
         }
@@ -137,9 +147,7 @@ public class ExcelFactureExtractor {
             // Vérifie si on a atteint la section des totaux
             boolean isTotalSection = false;
             for (Cell cell : row) {
-                if (cell.getCellType() == CellType.STRING &&
-                        ("H.T".equalsIgnoreCase(cell.getStringCellValue().trim()) ||
-                                "Montant TTC".equalsIgnoreCase(cell.getStringCellValue().trim()))) {
+                if (cell.getCellType() == CellType.STRING && ("H.T".equalsIgnoreCase(cell.getStringCellValue().trim()) || "Montant TTC".equalsIgnoreCase(cell.getStringCellValue().trim()))) {
                     isTotalSection = true;
                     break;
                 }
@@ -148,6 +156,7 @@ public class ExcelFactureExtractor {
 
             // Vérifie si la ligne contient un produit
             Cell productCell = row.getCell(1); // Colonne B (Produit / Service)
+//            System.out.println("productCell "+productCell);
             if (productCell.getCellType() == CellType.BLANK) {
                 continue; // Ligne vide
             }
@@ -157,6 +166,7 @@ public class ExcelFactureExtractor {
             // Date (colonne A)
             Cell dateCell = row.getCell(0);
             if (dateCell != null) {
+//                System.out.println("dateCell " + dateCell.toString());
                 if (dateCell.getCellType() == CellType.NUMERIC && DateUtil.isCellDateFormatted(dateCell)) {
                     ligne.setDate(dateCell.getDateCellValue().toString());
                 } else if (dateCell.getCellType() == CellType.STRING) {
@@ -171,10 +181,12 @@ public class ExcelFactureExtractor {
 
             // Quantité (colonne C)
             Cell qteCell = row.getCell(2);
+//            System.out.println("qteCell "+qteCell);
             if (qteCell != null) {
-                if (qteCell.getCellType() == CellType.NUMERIC) {
+//            System.out.println("qteCell.getCellType() "+qteCell.getCellType());
+                if (qteCell.getCellType() == CellType.NUMERIC || qteCell.getCellType() == CellType.FORMULA) {
                     ligne.setQuantite((int) qteCell.getNumericCellValue());
-                } else if (qteCell.getCellType() == CellType.STRING) {
+                } else if (qteCell.getCellType() == CellType.STRING || qteCell.getCellType() == CellType.FORMULA) {
                     try {
                         ligne.setQuantite(Integer.parseInt(qteCell.getStringCellValue()));
                     } catch (NumberFormatException e) {
@@ -185,6 +197,7 @@ public class ExcelFactureExtractor {
 
             // Prix unitaire HT (colonne D)
             Cell prixCell = row.getCell(3);
+//            System.out.println("prixCell " + prixCell);
             if (prixCell != null) {
                 if (prixCell.getCellType() == CellType.NUMERIC) {
                     ligne.setPrixUnitaireHT(prixCell.getNumericCellValue());

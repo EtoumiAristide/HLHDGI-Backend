@@ -20,4 +20,5 @@ public class FacturePayload {
     private ModePaiement modePaiement;
     private String pointVente;
     private String entreprise;
+    private String sheetName;
 }

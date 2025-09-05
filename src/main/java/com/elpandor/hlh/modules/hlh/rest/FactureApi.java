@@ -3,6 +3,8 @@ package com.elpandor.hlh.modules.hlh.rest;
 import com.elpandor.hlh.common.service.impl.FileStorageServiceImpl;
 import com.elpandor.hlh.modules.hlh.model.ModePaiement;
 import com.elpandor.hlh.modules.hlh.model.TypeClient;
+import com.elpandor.hlh.modules.hlh.service.impl.BurgerKingApimServiceImpl;
+import com.elpandor.hlh.modules.hlh.service.impl.HLHApimServiceImpl;
 import com.elpandor.hlh.modules.hlh.utils.ExcelFactureExtractor;
 import com.elpandor.hlh.common.utils.Utilities;
 import com.elpandor.hlh.modules.hlh.model.TypeFacture;
@@ -11,9 +13,12 @@ import com.elpandor.hlh.modules.hlh.model.dto.payload.FacturePayload;
 import com.elpandor.hlh.modules.hlh.model.dto.payload.TokenResponse;
 import com.elpandor.hlh.modules.hlh.service.ApimService;
 import com.elpandor.hlh.modules.hlh.service.FactureService;
+import com.elpandor.hlh.modules.parametrage.organisations.dto.EtablissementDto;
+import com.elpandor.hlh.modules.parametrage.organisations.service.EtablissementService;
 import io.swagger.v3.core.util.Json;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
@@ -43,12 +48,22 @@ public class FactureApi {
 
     private final FileStorageServiceImpl fileStorageService;
     private final FactureService factureService;
-    private final ApimService apimService;
+    private final ApimService hlhApimService;
+    private final ApimService bkApimService;
+    private final EtablissementService etablissementService;
 
-    public FactureApi(FileStorageServiceImpl fileStorageService, FactureService factureService, ApimService apimService) {
+    @Value("${bk.api.entreprise}")
+    private String entrepriseBK;
+
+    @Value("${hlh.api.entreprise}")
+    private String entrepriseHLH;
+
+    public FactureApi(FileStorageServiceImpl fileStorageService, FactureService factureService, HLHApimServiceImpl hlhApimService, BurgerKingApimServiceImpl burgerKingApimService, EtablissementService etablissementService) {
         this.fileStorageService = fileStorageService;
         this.factureService = factureService;
-        this.apimService = apimService;
+        this.hlhApimService = hlhApimService;
+        this.bkApimService = burgerKingApimService;
+        this.etablissementService = etablissementService;
     }
 
     @GetMapping(path = "/{id}")
@@ -116,10 +131,10 @@ public class FactureApi {
     @PostMapping("/upload")
     @PreAuthorize("hasRole('Admin') or hasRole('Agent')")
     public ResponseEntity<Map<String, Object>> uploadExcelFile(@RequestParam("file") MultipartFile file,
-                                                               @RequestParam(value = "type", defaultValue = "FACTURE_VENTE") String typeFacture,
-                                                               @RequestParam(value = "client", defaultValue = "B2C") String typeClient,
-                                                               @RequestParam(value = "paiement", defaultValue = "cash") String modePaiement,
-                                                               @RequestParam(value = "pointvente", defaultValue = "cash") String pointVente,
+                                                               @RequestParam(name = "type", defaultValue = "FACTURE_VENTE") String typeFacture,
+                                                               @RequestParam(name = "client", defaultValue = "B2C") String typeClient,
+                                                               @RequestParam(name = "paiement", defaultValue = "cash") String modePaiement,
+                                                               @RequestParam(name = "pointvente", defaultValue = "pv") String pointVente,
                                                                @AuthenticationPrincipal Jwt jwt) {
         log.trace("Starting processing get request for uploadExcelFile");
         try {
@@ -129,6 +144,9 @@ public class FactureApi {
             if (groups == null) groups = List.of();
             if (groups.isEmpty())
                 return Utilities.createErrorResponse("Entreprise agent inconnue", List.of(), HttpStatus.BAD_REQUEST);
+
+            //Recuperation de l'établissement
+            EtablissementDto etablissement = etablissementService.findByNom(groups.get(0));
 
             // Process the uploaded file
             if (file.isEmpty()) {
@@ -155,12 +173,25 @@ public class FactureApi {
 //            List<MyObject> objects = ExcelParser.parseExcelFile(is);
             //ExcelParser.parseExcelFile(is);
             ExcelFactureExtractor extractor = new ExcelFactureExtractor();
-            List<FacturePayload> factures = extractor.extractFacture(is);
+            List<FacturePayload> factures = extractor.extractFacture(is, etablissement != null ? etablissement.getOrganisation().getIndexLectureFichier() : 0);
             List<String> finalGroups = groups;
             factures.forEach(facturePayload -> {
                 facturePayload.setTypeFacture(TypeFacture.valueOf(typeFacture));
                 facturePayload.setTypeClient(TypeClient.valueOf(typeClient));
-                facturePayload.setModePaiement(ModePaiement.valueOf(modePaiement));
+                if (etablissement != null) {
+                    if (etablissement.getOrganisation().getIsOrderedByPaiementMethod()) {
+                        facturePayload.setModePaiement(facturePayload.getSheetName().toLowerCase().contains("mobile money") ? ModePaiement.mobilemoney : (facturePayload.getSheetName().equalsIgnoreCase("cash") ? ModePaiement.cash : ModePaiement.card));
+
+                        if (etablissement.getOrganisation().getIsPrixUnitaireDefined()) {
+                            //On ajoute le prix unitaire dans les données
+                            facturePayload.getLignes().forEach(ligneProduitPayload -> {
+                                ligneProduitPayload.setPrixUnitaireHT(ligneProduitPayload.getMontantHT() / ligneProduitPayload.getQuantite());
+                            });
+                        }
+                    } else {
+                        facturePayload.setModePaiement(ModePaiement.valueOf(modePaiement));
+                    }
+                }
                 facturePayload.setEntreprise(finalGroups.get(0));
                 facturePayload.setPointVente(pointVente);
             });
@@ -181,10 +212,10 @@ public class FactureApi {
     @PostMapping
     @PreAuthorize("hasRole('Admin') or hasRole('Agent')")
     public ResponseEntity<Map<String, Object>> save(@RequestParam("file") MultipartFile file,
-                                                    @RequestParam(value = "type", defaultValue = "FACTURE_VENTE") String typeFacture,
-                                                    @RequestParam(value = "client", defaultValue = "B2C") String typeClient,
-                                                    @RequestParam(value = "paiement", defaultValue = "cash") String modePaiement,
-                                                    @RequestParam(value = "pointvente", defaultValue = "cash") String pointVente,
+                                                    @RequestParam(name = "type", defaultValue = "FACTURE_VENTE") String typeFacture,
+                                                    @RequestParam(name = "client", defaultValue = "B2C") String typeClient,
+                                                    @RequestParam(name = "paiement", defaultValue = "cash") String modePaiement,
+                                                    @RequestParam(name = "pointvente", defaultValue = "pv") String pointVente,
                                                     @AuthenticationPrincipal Jwt jwt) {
         log.trace("Starting processing get request for uploadExcelFile");
         try {
@@ -193,7 +224,10 @@ public class FactureApi {
             List<String> groups = jwt.getClaim("groups");
             if (groups == null) groups = List.of();
             if (groups.isEmpty())
-                return Utilities.createErrorResponse("Entreprise agent inconnue", List.of(), HttpStatus.BAD_REQUEST);
+                return Utilities.createErrorResponse("Etablissement agent inconnue", List.of(), HttpStatus.BAD_REQUEST);
+
+            //Recuperation de l'établissement
+            EtablissementDto etablissement = etablissementService.findByNom(groups.get(0));
 
             // Process the uploaded file
             if (file.isEmpty()) {
@@ -220,12 +254,27 @@ public class FactureApi {
 //            List<MyObject> objects = ExcelParser.parseExcelFile(is);
             //ExcelParser.parseExcelFile(is);
             ExcelFactureExtractor extractor = new ExcelFactureExtractor();
-            List<FacturePayload> factures = extractor.extractFacture(is);
+            List<FacturePayload> factures = extractor.extractFacture(is, etablissement != null ? etablissement.getOrganisation().getIndexLectureFichier() : 0);
+
             List<String> finalGroups = groups;
             factures.forEach(facturePayload -> {
                 facturePayload.setTypeFacture(TypeFacture.valueOf(typeFacture));
                 facturePayload.setTypeClient(TypeClient.valueOf(typeClient));
-                facturePayload.setModePaiement(ModePaiement.valueOf(modePaiement));
+                if (etablissement != null) {
+                    if (etablissement.getOrganisation().getIsOrderedByPaiementMethod()) {
+                        facturePayload.setModePaiement(facturePayload.getSheetName().toLowerCase().contains("mobile money") ? ModePaiement.mobilemoney : (facturePayload.getSheetName().equalsIgnoreCase("cash") ? ModePaiement.cash : ModePaiement.card));
+
+                        if (etablissement.getOrganisation().getIsPrixUnitaireDefined()) {
+                            //On ajoute le prix unitaire dans les données
+                            facturePayload.getLignes().forEach(ligneProduitPayload -> {
+                                ligneProduitPayload.setPrixUnitaireHT(ligneProduitPayload.getMontantHT() / ligneProduitPayload.getQuantite());
+                            });
+                        }
+
+                    } else {
+                        facturePayload.setModePaiement(ModePaiement.valueOf(modePaiement));
+                    }
+                }
                 facturePayload.setEntreprise(finalGroups.get(0));
                 facturePayload.setPointVente(pointVente);
             });
@@ -237,9 +286,18 @@ public class FactureApi {
 
             for (FacturePayload facture : factures) {
                 //Appel de l'api DGI
-                TokenResponse tokenResponse = apimService.auth();
+                TokenResponse tokenResponse = null;
+                ResponseEntity<String> response = null;
                 String request = Json.pretty(facture);
-                ResponseEntity<String> response = apimService.sendData(tokenResponse.getAccessToken(), facture);
+
+                if (etablissement.getOrganisation().getRaisonSocial().equalsIgnoreCase(entrepriseHLH)) {
+                    tokenResponse = hlhApimService.auth();
+                    response = hlhApimService.sendData(tokenResponse.getAccessToken(), facture);
+                }
+                if (etablissement.getOrganisation().getRaisonSocial().equalsIgnoreCase(entrepriseBK)) {
+                    tokenResponse = bkApimService.auth();
+                    response = bkApimService.sendData(tokenResponse.getAccessToken(), facture);
+                }
 
                 if (response.getStatusCode().is2xxSuccessful()) {
                     FactureDto factureDto = FactureDto.builder()

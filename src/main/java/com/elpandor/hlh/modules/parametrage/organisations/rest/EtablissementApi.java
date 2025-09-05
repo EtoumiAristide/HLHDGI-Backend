@@ -2,10 +2,11 @@ package com.elpandor.hlh.modules.parametrage.organisations.rest;
 
 import com.elpandor.hlh.common.service.FileStorageService;
 import com.elpandor.hlh.common.utils.Utilities;
-import com.elpandor.hlh.modules.parametrage.organisations.dto.*;
-import com.elpandor.hlh.modules.parametrage.organisations.service.EtablissementService;
+import com.elpandor.hlh.modules.parametrage.organisations.dto.EtablissementEntreprise;
+import com.elpandor.hlh.modules.parametrage.organisations.dto.OrganisationDto;
+import com.elpandor.hlh.modules.parametrage.organisations.dto.EtablissementDto;
 import com.elpandor.hlh.modules.parametrage.organisations.service.OrganisationService;
-import com.elpandor.hlh.modules.parametrage.organisations.service.PointVenteService;
+import com.elpandor.hlh.modules.parametrage.organisations.service.EtablissementService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -24,14 +25,13 @@ import java.util.List;
 import java.util.Map;
 
 @RestController
-@RequestMapping("api/v1/point-vente")
+@RequestMapping("api/v1/etablissement")
 @CrossOrigin(origins = "*", allowedHeaders = "*")
-public class PointVenteApi {
-    private Logger log = LoggerFactory.getLogger(PointVenteApi.class);
+public class EtablissementApi {
+    private Logger log = LoggerFactory.getLogger(EtablissementApi.class);
 
-    private final PointVenteService pointVenteService;
-    private final OrganisationService organisationService;
     private final EtablissementService etablissementService;
+    private final OrganisationService organisationService;
 
     private final FileStorageService fileStorageService;
 
@@ -41,20 +41,19 @@ public class PointVenteApi {
     private Path root;
 
     @Autowired
-    public PointVenteApi(PointVenteService pointVenteService, OrganisationService organisationService, EtablissementService etablissementService, FileStorageService fileStorageService) {
-        this.pointVenteService = pointVenteService;
-        this.organisationService = organisationService;
+    public EtablissementApi(EtablissementService etablissementService, OrganisationService organisationService, FileStorageService fileStorageService) {
         this.etablissementService = etablissementService;
+        this.organisationService = organisationService;
         this.fileStorageService = fileStorageService;
     }
 
     @GetMapping(path = "/{id}")
-    public ResponseEntity<PointVenteDto> get(@PathVariable Integer id) {
+    public ResponseEntity<EtablissementDto> get(@PathVariable Integer id) {
         log.trace("Starting processing get request for id :" + id);
 
-        PointVenteDto pointVenteDto = pointVenteService.get(id);
-        if (pointVenteDto != null) {
-            return new ResponseEntity<>(pointVenteDto, HttpStatus.OK);
+        EtablissementDto etablissementDto = etablissementService.get(id);
+        if (etablissementDto != null) {
+            return new ResponseEntity<>(etablissementDto, HttpStatus.OK);
         }
 
         log.info("Entity having id not found, id : " + id);
@@ -65,10 +64,10 @@ public class PointVenteApi {
     public ResponseEntity<Map<String, Object>> getAll(@RequestParam(value = "pageNum", required = false) Integer pageNum, @RequestParam(value = "size", required = false) Integer size) {
         log.trace("Starting processing getAll request!");
 
-        List<PointVenteDto> pointVentes = pointVenteService.getAll();
-        if (pointVentes != null && !pointVentes.isEmpty()) {
-//            return new ResponseEntity<>(pointVentes, HttpStatus.OK);
-            return Utilities.createSuccessResponse(HttpStatus.OK, pointVentes, "Liste des points de vente");
+        List<EtablissementDto> etablissements = etablissementService.getAll();
+        if (etablissements != null && !etablissements.isEmpty()) {
+//            return new ResponseEntity<>(etablissements, HttpStatus.OK);
+            return Utilities.createSuccessResponse(HttpStatus.OK, etablissements, "Liste des points de vente");
         }
 
         log.info("No element found while hitting getAll");
@@ -80,9 +79,9 @@ public class PointVenteApi {
     public ResponseEntity<Map<String, Object>> getAllByPage(@RequestParam(value = "pageNum", required = false) Integer pageNum, @RequestParam(value = "size", required = false) Integer size) {
         log.trace("Starting processing getAll request!");
 
-        Page<PointVenteDto> pages = pointVenteService.getAllPagined(pageNum, size);
-        List<PointVenteDto> pointVenteDtos = pages.getContent();
-        if (!pointVenteDtos.isEmpty()) {
+        Page<EtablissementDto> pages = etablissementService.getAllPagined(pageNum, size);
+        List<EtablissementDto> etablissementDtos = pages.getContent();
+        if (!etablissementDtos.isEmpty()) {
             return Utilities.createSuccessResponse(HttpStatus.OK, pages, "Liste des type carte");
         }
 
@@ -96,19 +95,17 @@ public class PointVenteApi {
 
         //Recuperation du group
         List<String> groups = jwt.getClaim("groups");
-        String etablissement = "";
-        //OrganisationDto organisationDto = null;
-        EtablissementDto etablissementDto = null;
+        String entreprise = "";
+        OrganisationDto organisationDto = null;
         if (groups != null) {
-            etablissement = groups.get(0);
-            //organisationDto = organisationService.findByRaisonSocial(entreprise);
-            etablissementDto = etablissementService.findByNom(etablissement);
+            entreprise = groups.get(0);
+            organisationDto = organisationService.findByRaisonSocial(entreprise);
         }
 
-        List<PointVenteDto> pointVentes = etablissementDto != null ? pointVenteService.getAllByEtablissement(etablissementDto.getId()) : List.of();
-        if (!pointVentes.isEmpty()) {
-//            return new ResponseEntity<>(pointVenteEntreprises, HttpStatus.OK);
-            return Utilities.createSuccessResponse(HttpStatus.OK, pointVentes, "Liste des points de vente");
+        List<EtablissementDto> etablissements = organisationDto != null ? etablissementService.getAllByOrganosation(organisationDto.getId()) : List.of();
+        if (!etablissements.isEmpty()) {
+//            return new ResponseEntity<>(etablissementEntreprises, HttpStatus.OK);
+            return Utilities.createSuccessResponse(HttpStatus.OK, etablissements, "Liste des points de vente");
         }
 
         log.info("No element found while hitting getAll");
@@ -120,14 +117,14 @@ public class PointVenteApi {
     public ResponseEntity<Map<String, Object>> getAllByEntreprise() {
         log.trace("Starting processing getAll request!");
 
-        List<PointVenteDto> pointVentes = pointVenteService.getAll();
-        List<PointVenteEntreprise> pointVenteEntreprises = new ArrayList<>();
-        if (pointVentes != null && !pointVentes.isEmpty()) {
+        List<EtablissementDto> etablissements = etablissementService.getAll();
+        List<EtablissementEntreprise> etablissementEntreprises = new ArrayList<>();
+        if (etablissements != null && !etablissements.isEmpty()) {
 
-            initDataForGrid(pointVentes, pointVenteEntreprises);
+            initDataForGrid(etablissements, etablissementEntreprises);
 
-//            return new ResponseEntity<>(pointVenteEntreprises, HttpStatus.OK);
-            return Utilities.createSuccessResponse(HttpStatus.OK, pointVenteEntreprises, "Liste des points de vente");
+//            return new ResponseEntity<>(etablissementEntreprises, HttpStatus.OK);
+            return Utilities.createSuccessResponse(HttpStatus.OK, etablissementEntreprises, "Liste des établissement");
         }
 
         log.info("No element found while hitting getAll");
@@ -136,62 +133,43 @@ public class PointVenteApi {
     }
 
 
-    private void initDataForGrid(List<PointVenteDto> pointVentes, List<PointVenteEntreprise> pointVenteEntreprises) {
+    private void initDataForGrid(List<EtablissementDto> etablissements, List<EtablissementEntreprise> etablissementEntreprises) {
         //Ordonnancement de la liste par ID
-        pointVentes.sort(Comparator.comparingInt(PointVenteDto::getId));
+        etablissements.sort(Comparator.comparingInt(EtablissementDto::getId));
 
         //Regroupement par entreprise
         List<OrganisationDto> organisations = new ArrayList<>();
 
-        pointVentes.forEach(pointVenteDto -> {
-            if (organisations.stream().noneMatch(organisationDto -> organisationDto.getId().equals(pointVenteDto.getEtablissement().getOrganisation().getId()))) {
-                organisations.add(pointVenteDto.getEtablissement().getOrganisation());
+        etablissements.forEach(etablissementDto -> {
+            if (organisations.stream().noneMatch(organisationDto -> organisationDto.getId().equals(etablissementDto.getOrganisation().getId()))) {
+                organisations.add(etablissementDto.getOrganisation());
             }
         });
 
         organisations.sort(Comparator.comparingInt(OrganisationDto::getId));
         organisations.forEach(organisationDto -> {
-
-            PointVenteEntreprise pointVenteEntreprise = new PointVenteEntreprise();
-            pointVenteEntreprise.setOrganisation(organisationDto);
-            pointVenteEntreprise.setEtablissements(new ArrayList<>());
-
-            List<EtablissementDto> etablissements = new ArrayList<>();
-            pointVentes.forEach(pointVenteDto -> {
-                if (etablissements.stream().noneMatch(etablissementDto -> etablissementDto.getId().equals(pointVenteDto.getEtablissement().getId())) && organisationDto.getId().equals(pointVenteDto.getEtablissement().getOrganisation().getId())) {
-                    etablissements.add(pointVenteDto.getEtablissement());
-                }
-            });
-            System.out.println("Entreprise: " + organisationDto.getRaisonSocial());
-            System.out.println("etablissements size: " + etablissements.size());
+            EtablissementEntreprise etablissementEntreprise = new EtablissementEntreprise();
+            etablissementEntreprise.setOrganisation(organisationDto);
+            etablissementEntreprise.setEtablissements(new ArrayList<>());
 
             etablissements.forEach(etablissementDto -> {
-                PointVenteEtablissement pointVenteEtablissement = new PointVenteEtablissement();
-                pointVenteEtablissement.setEtablissement(etablissementDto);
-                pointVenteEtablissement.setPointVentes(new ArrayList<>());
-
-                pointVentes.forEach(pointVenteDto -> {
-                    if (pointVenteDto.getEtablissement().getId().equals(etablissementDto.getId())) {
-                        pointVenteEtablissement.getPointVentes().add(pointVenteDto);
-                    }
-                });
-
-                pointVenteEntreprise.getEtablissements().add(pointVenteEtablissement);
+                if (etablissementDto.getOrganisation().getId().equals(organisationDto.getId())) {
+                    etablissementEntreprise.getEtablissements().add(etablissementDto);
+                }
             });
 
-
-            pointVenteEntreprises.add(pointVenteEntreprise);
+            etablissementEntreprises.add(etablissementEntreprise);
         });
     }
 
     @GetMapping("/organisation/{organisationId}")
     public ResponseEntity<Map<String, Object>> getByOrganisation(@PathVariable("organisationId") Integer organisationId) {
         log.trace("Starting processing getAll request!");
-        List<PointVenteDto> pointVenteDtoList = pointVenteService.getAllByEtablissement(organisationId);
+        List<EtablissementDto> etablissementDtoList = etablissementService.getAllByOrganosation(organisationId);
 
-        if (pointVenteDtoList != null) {
-//            return new ResponseEntity<>(pointVenteDtoList, HttpStatus.OK);
-            return Utilities.createSuccessResponse(HttpStatus.OK, pointVenteDtoList, "Liste des points de vente");
+        if (etablissementDtoList != null) {
+//            return new ResponseEntity<>(etablissementDtoList, HttpStatus.OK);
+            return Utilities.createSuccessResponse(HttpStatus.OK, etablissementDtoList, "Liste des points de vente");
         }
 
         log.info("No element found while hitting getAll");
@@ -202,47 +180,47 @@ public class PointVenteApi {
 
     @PostMapping()
     @PreAuthorize("hasRole('Super-Admin')")
-    public ResponseEntity<Map<String, Object>> save(@RequestBody PointVenteDto pointVenteDto) {
+    public ResponseEntity<Map<String, Object>> save(@RequestBody EtablissementDto etablissementDto) {
         log.trace("Starting processing Post request!");
         try {
-            //Insertion de l'pointVente
-            pointVenteDto.setId(null);
-            pointVenteDto = pointVenteService.saveOrUpdate(pointVenteDto);
+            //Insertion de l'etablissement
+            etablissementDto.setId(null);
+            etablissementDto = etablissementService.saveOrUpdate(etablissementDto);
 
         } catch (Exception err) {
             log.error("Error Occured while saving, Message : " + err.getMessage() + "; Cause :" + err.getCause());
 //            return new ResponseEntity<>(HttpStatus.INTERNAL_SERVER_ERROR);
             return Utilities.createErrorResponse("Une erreur est survenue", err.getMessage(), HttpStatus.INTERNAL_SERVER_ERROR);
         }
-//        return new ResponseEntity<>(pointVenteDto, HttpStatus.CREATED);
-        return Utilities.createSuccessResponse(HttpStatus.OK, pointVenteDto, "Point de vente créé");
+//        return new ResponseEntity<>(etablissementDto, HttpStatus.CREATED);
+        return Utilities.createSuccessResponse(HttpStatus.OK, etablissementDto, "Point de vente créé");
     }
 
     @PutMapping(path = "/{id}")
     @PreAuthorize("hasRole('Super-Admin')")
-    public ResponseEntity<Map<String, Object>> update(@PathVariable Integer id, @RequestBody PointVenteDto pointVenteDto) {
+    public ResponseEntity<Map<String, Object>> update(@PathVariable Integer id, @RequestBody EtablissementDto etablissementDto) {
 
         log.trace("Starting processing put for id :" + id);
-        //Recherche de l'pointVente dans la BD
-        PointVenteDto pointVenteDtoSearch = pointVenteService.get(id);
+        //Recherche de l'etablissement dans la BD
+        EtablissementDto etablissementDtoSearch = etablissementService.get(id);
 
-        if (pointVenteDtoSearch != null) {
+        if (etablissementDtoSearch != null) {
             log.trace("processing put request for id :" + id);
-            pointVenteDto.setId(pointVenteDtoSearch.getId());
+            etablissementDto.setId(etablissementDtoSearch.getId());
 
             try {
 
-                pointVenteDto = pointVenteService.saveOrUpdate(pointVenteDto);
+                etablissementDto = etablissementService.saveOrUpdate(etablissementDto);
             } catch (Exception err) {
                 log.error("Error Occured while saving, Message : " + err.getMessage() + "; Cause :" + err.getCause());
 //                return new ResponseEntity<>(HttpStatus.INTERNAL_SERVER_ERROR);
                 return Utilities.createErrorResponse("Une erreur est survenue", err.getMessage(), HttpStatus.INTERNAL_SERVER_ERROR);
             }
-//            return new ResponseEntity<>(pointVenteDto, HttpStatus.OK);
-            return Utilities.createSuccessResponse(HttpStatus.OK, pointVenteDto, "Point de vente mis à jour");
+//            return new ResponseEntity<>(etablissementDto, HttpStatus.OK);
+            return Utilities.createSuccessResponse(HttpStatus.OK, etablissementDto, "Point de vente mis à jour");
         }
 
-        log.info("Id mismatch for model (" + pointVenteDto + ") and request param :" + id);
+        log.info("Id mismatch for model (" + etablissementDto + ") and request param :" + id);
 //        return new ResponseEntity<>(HttpStatus.NOT_MODIFIED);
         return Utilities.createErrorResponse("Aucune modification éffectué", List.of(), HttpStatus.NOT_MODIFIED);
     }
@@ -251,13 +229,13 @@ public class PointVenteApi {
     public ResponseEntity<Map<String, Object>> delete(@PathVariable Integer id) {
         log.trace("Starting  processing of delete rrequest for id :" + id);
 
-        if (!pointVenteService.isExist(id)) {
+        if (!etablissementService.isExist(id)) {
             log.info("Entity not found while processing the delete request for id :" + id);
 //            return new ResponseEntity<>(HttpStatus.NOT_FOUND);
             return Utilities.createErrorResponse("Point de vente avec l'id " + id + " n'est pas disponible", List.of(), HttpStatus.NOT_FOUND);
         }
 
-        pointVenteService.delete(id);
+        etablissementService.delete(id);
         log.info("Entity deleted having id :" + id);
 //        return new ResponseEntity<>(HttpStatus.OK);
         return Utilities.createSuccessResponse(HttpStatus.NO_CONTENT, List.of(), "Point de vente supprimé");

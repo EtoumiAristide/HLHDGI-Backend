@@ -5,7 +5,7 @@ import lombok.Data;
 import java.util.List;
 
 @Data
-public class PointVenteEntreprise {
+public class EtablissementEntreprise {
     private OrganisationDto organisation;
-    private List<PointVenteEtablissement> etablissements;
+    private List<EtablissementDto> etablissements;
 }

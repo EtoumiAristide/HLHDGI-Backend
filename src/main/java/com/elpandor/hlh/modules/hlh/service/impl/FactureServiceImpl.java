@@ -39,6 +39,6 @@ public class FactureServiceImpl extends GenericServiceImpl<Facture, Integer, Fac
 
     @Override
     public Page<FactureDto> findByEntreprise(Pageable pageable, String entreprise) {
-        return factureRepository.findByPointVente_Organisation_RaisonSocial(pageable, entreprise).map(this::transformEntityToDTO);
+        return factureRepository.findByPointVente_Etablissement_Organisation_RaisonSocial(pageable, entreprise).map(this::transformEntityToDTO);
     }
 }

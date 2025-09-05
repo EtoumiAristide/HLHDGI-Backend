@@ -17,7 +17,7 @@ import java.util.Collections;
 
 @Slf4j
 @Service
-public class ApimServiceImpl implements ApimService {
+public class HLHApimServiceImpl implements ApimService {
 
     @Value("${hlh.auth.user}")
     private String username;
@@ -33,7 +33,7 @@ public class ApimServiceImpl implements ApimService {
 
     private final RestTemplate restTemplate;
 
-    public ApimServiceImpl(RestTemplate restTemplate) {
+    public HLHApimServiceImpl(RestTemplate restTemplate) {
         this.restTemplate = restTemplate;
     }
 

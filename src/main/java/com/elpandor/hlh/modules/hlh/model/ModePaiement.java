@@ -1,5 +1,7 @@
 package com.elpandor.hlh.modules.hlh.model;
 
+import com.fasterxml.jackson.annotation.JsonValue;
+
 public enum ModePaiement {
 
     cash("cash", "Espèce"),
@@ -15,5 +17,10 @@ public enum ModePaiement {
     ModePaiement(String value, String libelle) {
         this.value = value;
         this.libelle = libelle;
+    }
+
+    @JsonValue
+    public String toJson() {
+        return value; // 👉 JSON utilisera "mobile-money"
     }
 }
