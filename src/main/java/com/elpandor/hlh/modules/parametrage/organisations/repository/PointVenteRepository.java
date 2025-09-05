@@ -11,4 +11,5 @@ import java.util.List;
 @Repository
 public interface PointVenteRepository extends JpaRepository<PointVente, Integer> {
     List<PointVente> findByEtablissementId(Integer etablissementId);
+    PointVente findByNom(String nom);
 }

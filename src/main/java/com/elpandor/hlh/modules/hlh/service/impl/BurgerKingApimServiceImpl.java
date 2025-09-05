@@ -45,6 +45,8 @@ public class BurgerKingApimServiceImpl implements ApimService {
 
         MultiValueMap<String, String> body = new LinkedMultiValueMap<>();
         body.add("grant_type", "client_credentials");
+        System.out.println("username: "+username);
+        System.out.println("password: "+password);
         System.out.println("body "+body);
 
         HttpEntity<MultiValueMap<String, String>> request = new HttpEntity<>(body, headers);

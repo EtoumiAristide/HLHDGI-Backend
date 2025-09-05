@@ -14,7 +14,9 @@ import com.elpandor.hlh.modules.hlh.model.dto.payload.TokenResponse;
 import com.elpandor.hlh.modules.hlh.service.ApimService;
 import com.elpandor.hlh.modules.hlh.service.FactureService;
 import com.elpandor.hlh.modules.parametrage.organisations.dto.EtablissementDto;
+import com.elpandor.hlh.modules.parametrage.organisations.dto.PointVenteDto;
 import com.elpandor.hlh.modules.parametrage.organisations.service.EtablissementService;
+import com.elpandor.hlh.modules.parametrage.organisations.service.PointVenteService;
 import io.swagger.v3.core.util.Json;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -51,6 +53,7 @@ public class FactureApi {
     private final ApimService hlhApimService;
     private final ApimService bkApimService;
     private final EtablissementService etablissementService;
+    private final PointVenteService pointVenteService;
 
     @Value("${bk.api.entreprise}")
     private String entrepriseBK;
@@ -58,12 +61,13 @@ public class FactureApi {
     @Value("${hlh.api.entreprise}")
     private String entrepriseHLH;
 
-    public FactureApi(FileStorageServiceImpl fileStorageService, FactureService factureService, HLHApimServiceImpl hlhApimService, BurgerKingApimServiceImpl burgerKingApimService, EtablissementService etablissementService) {
+    public FactureApi(FileStorageServiceImpl fileStorageService, FactureService factureService, HLHApimServiceImpl hlhApimService, BurgerKingApimServiceImpl burgerKingApimService, EtablissementService etablissementService, PointVenteService pointVenteService) {
         this.fileStorageService = fileStorageService;
         this.factureService = factureService;
         this.hlhApimService = hlhApimService;
         this.bkApimService = burgerKingApimService;
         this.etablissementService = etablissementService;
+        this.pointVenteService = pointVenteService;
     }
 
     @GetMapping(path = "/{id}")
@@ -114,11 +118,14 @@ public class FactureApi {
 
         //Recuperation du group
         List<String> groups = jwt.getClaim("groups");
-        String entreprise = "";
-        if (groups != null) entreprise = groups.get(0);
-//        System.out.println(entreprise);
+        if (groups == null) groups = List.of();
+        if (groups.isEmpty())
+            return Utilities.createErrorResponse("Etablissement agent inconnue", List.of(), HttpStatus.BAD_REQUEST);
 
-        Page<FactureDto> pages = factureService.findByEntreprise(pageable, entreprise);
+        //Recuperation de l'établissement
+        EtablissementDto etablissement = etablissementService.findByNom(groups.get(0));
+
+        Page<FactureDto> pages = factureService.findByEntreprise(pageable, etablissement != null ? etablissement.getOrganisation().getRaisonSocial() : "");
         List<FactureDto> typeCartes = pages.getContent();
         if (!typeCartes.isEmpty()) {
             return Utilities.createSuccessResponse(HttpStatus.OK, pages, "Liste des types d'intervention");
@@ -298,7 +305,7 @@ public class FactureApi {
                     tokenResponse = bkApimService.auth();
                     response = bkApimService.sendData(tokenResponse.getAccessToken(), facture);
                 }
-
+                PointVenteDto pointVenteDto = pointVenteService.findByNom(groups.get(0));
                 if (response.getStatusCode().is2xxSuccessful()) {
                     FactureDto factureDto = FactureDto.builder()
                             .numFacture(facture.getNumeroFacture())
@@ -310,6 +317,7 @@ public class FactureApi {
                             .modePaiement(facture.getModePaiement())
                             .dataSend(request)
                             .reponseFNE(response.getBody())
+                            .pointVente(pointVenteDto)
                             .build();
 
                     factureService.saveOrUpdate(factureDto);

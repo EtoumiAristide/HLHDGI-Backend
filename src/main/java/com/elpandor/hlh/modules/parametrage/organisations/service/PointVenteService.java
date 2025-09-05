@@ -14,4 +14,5 @@ import java.util.UUID;
 public interface PointVenteService extends GenericService<PointVente, Integer, PointVenteDto> {
 
     List<PointVenteDto> getAllByEtablissement(Integer etablissementId);
+    PointVenteDto findByNom(String nom);
 }
