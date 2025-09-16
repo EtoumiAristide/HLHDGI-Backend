@@ -62,4 +62,9 @@ public class OrganisationServiceImpl extends GenericServiceImpl<Organisation, In
         return organisationRepository.getAllByMultipleId(ids).stream().map(this::transformEntityToDTO).toList();
     }
 
+    @Override
+    public OrganisationDto findByRaisonSocial(String entreprise) {
+        return transformEntityToDTO(organisationRepository.findByRaisonSocial(entreprise));
+    }
+
 }

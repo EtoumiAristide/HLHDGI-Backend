@@ -17,7 +17,7 @@ import org.springframework.cache.annotation.Cacheable;
 @Setter
 @Entity
 @Cacheable(cacheNames = "organisations")
-@Cache(usage= CacheConcurrencyStrategy.READ_WRITE)
+@Cache(usage = CacheConcurrencyStrategy.READ_WRITE)
 @SQLDelete(sql = "UPDATE organisations SET isdelete = true WHERE id=?")
 @SQLRestriction("isdelete = false")
 @NoArgsConstructor
@@ -47,5 +47,9 @@ public class Organisation extends AuditModel {
 
     @Column(name = "isdelete")
     private Boolean isdelete;
+
+    private Integer indexLectureFichier;
+    private Boolean isOrderedByPaiementMethod;
+    private Boolean isPrixUnitaireDefined;
 
 }

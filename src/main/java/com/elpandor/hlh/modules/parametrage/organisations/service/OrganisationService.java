@@ -12,6 +12,9 @@ import java.util.UUID;
 public interface OrganisationService extends GenericService<Organisation, Integer, OrganisationDto> {
 
     CompteUtilisateurDto getOrganisationByUtilisateur(UUID utilisateurId);
+
     List<OrganisationDto> getAllByMultipleId(int[] ids);
-//    void updateIsPrincipal();
+
+    OrganisationDto findByRaisonSocial(String entreprise);
+    //    void updateIsPrincipal();
 }
