@@ -289,7 +289,7 @@ public class FactureApi {
 
 //            System.out.println(facture);
             //Sauvegarde du fichier
-            String storeName = fileStorageService.storeFile(file, "Facture-" + new SimpleDateFormat("yyyyMMdddHHmmss").format(new Date()));
+            //String storeName = fileStorageService.storeFile(file, "Facture-" + new SimpleDateFormat("yyyyMMdddHHmmss").format(new Date()));
 
             for (FacturePayload facture : factures) {
                 //Appel de l'api DGI
@@ -305,13 +305,13 @@ public class FactureApi {
                     tokenResponse = bkApimService.auth();
                     response = bkApimService.sendData(tokenResponse.getAccessToken(), facture);
                 }
-                PointVenteDto pointVenteDto = pointVenteService.findByNom(groups.get(0));
+                PointVenteDto pointVenteDto = pointVenteService.findByNom(pointVente);
                 if (response.getStatusCode().is2xxSuccessful()) {
                     FactureDto factureDto = FactureDto.builder()
                             .numFacture(facture.getNumeroFacture())
                             .dateFacture(LocalDate.parse(facture.getDateFacture(), DateTimeFormatter.ofPattern("dd/MM/yyyy")))
                             .nomClient(facture.getClientPayload().getNom())
-                            .lienFichier(storeName)
+                            //.lienFichier(storeName)
                             .typeFacture(facture.getTypeFacture())
                             .typeClient(facture.getTypeClient())
                             .modePaiement(facture.getModePaiement())
@@ -404,6 +404,11 @@ public class FactureApi {
             return Utilities.createErrorResponse("Une erreur interne est survenue", List.of(), HttpStatus.INTERNAL_SERVER_ERROR);
         }
     }*/
+
+//    @GetMapping("export")
+//    public ResponseEntity<Map<String, Object>> export(){
+//        log.trace("Starting  processing of delete request for id :" + id);
+//    }
 
     @DeleteMapping(path = "/{id}")
     @PreAuthorize("hasRole('Admin') or hasRole('Agent')")
