@@ -10,7 +10,7 @@
     </parent>
     <groupId>com.elpandor</groupId>
     <artifactId>hlhdgibackend</artifactId>
-    <version>0.0.1-SNAPSHOT</version>
+    <version>1.0.0</version>
     <name>hlhdgibackend</name>
     <description>Backend pour l&apos;interfaçage de Hotel Luxury Housing</description>
     <url/>

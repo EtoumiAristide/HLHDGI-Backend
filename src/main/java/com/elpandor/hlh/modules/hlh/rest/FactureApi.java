@@ -287,7 +287,7 @@ public class FactureApi {
             });
             //facture.setTypeFacture(TypeFacture.valueOf(typeFacture));
 
-//            System.out.println(facture);
+//            System.out.println(factures);
             //Sauvegarde du fichier
             //String storeName = fileStorageService.storeFile(file, "Facture-" + new SimpleDateFormat("yyyyMMdddHHmmss").format(new Date()));
 
