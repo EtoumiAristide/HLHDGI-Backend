@@ -8,5 +8,5 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import java.util.List;
 
 public interface FactureRepository extends JpaRepository<Facture, Integer> {
-    Page<Facture> findByPointVente_Etablissement_Organisation_RaisonSocial(Pageable pageable, String entreprise);
+    Page<Facture> findByPointVente_Etablissement_Organisation_RaisonSocialOrderByIdDesc(Pageable pageable, String entreprise);
 }
