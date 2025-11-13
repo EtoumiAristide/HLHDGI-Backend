@@ -3,8 +3,10 @@ package com.elpandor.hlh.modules.hlh.rest;
 import com.elpandor.hlh.common.service.impl.FileStorageServiceImpl;
 import com.elpandor.hlh.modules.hlh.model.ModePaiement;
 import com.elpandor.hlh.modules.hlh.model.TypeClient;
+import com.elpandor.hlh.modules.hlh.model.dto.payload.BKExtractedData;
 import com.elpandor.hlh.modules.hlh.service.impl.BurgerKingApimServiceImpl;
 import com.elpandor.hlh.modules.hlh.service.impl.HLHApimServiceImpl;
+import com.elpandor.hlh.modules.hlh.utils.ExcelDataExtraction;
 import com.elpandor.hlh.modules.hlh.utils.ExcelFactureExtractor;
 import com.elpandor.hlh.common.utils.Utilities;
 import com.elpandor.hlh.modules.hlh.model.TypeFacture;
@@ -34,13 +36,10 @@ import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
 import java.io.InputStream;
-import java.text.SimpleDateFormat;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
-import java.util.Date;
-import java.util.List;
-import java.util.Map;
-import java.util.Optional;
+import java.util.*;
+import java.util.concurrent.atomic.AtomicReference;
 
 @RestController
 @RequestMapping("api/v1/factures")
@@ -175,12 +174,24 @@ public class FactureApi {
                 return Utilities.createErrorResponse("Format de fichier non supporté!", List.of(), HttpStatus.UNSUPPORTED_MEDIA_TYPE);
             }
 
-            InputStream is = file.getInputStream();
+            //InputStream is = file.getInputStream();
 
 //            List<MyObject> objects = ExcelParser.parseExcelFile(is);
             //ExcelParser.parseExcelFile(is);
             ExcelFactureExtractor extractor = new ExcelFactureExtractor();
-            List<FacturePayload> factures = extractor.extractFacture(is, etablissement != null ? etablissement.getOrganisation().getIndexLectureFichier() : 0);
+            System.out.println("etablissement.getOrganisation() " + etablissement);
+            List<FacturePayload> factures = new ArrayList<>();
+
+            if (etablissement.getOrganisation() != null) {
+                if (!etablissement.getOrganisation().getIsFactureInitiale()) {
+                    factures = extractor.extractFacture(file.getInputStream(), etablissement.getOrganisation().getIndexLectureFichier());
+                } else {
+                    BKExtractedData bkExtractedData = new ExcelDataExtraction().extractDataFromExcel(file);
+
+                    //bkExtractedData.getPayments().forEach();
+                }
+                System.out.println("factures " + factures);
+            }
             List<String> finalGroups = groups;
             factures.forEach(facturePayload -> {
                 facturePayload.setTypeFacture(TypeFacture.valueOf(typeFacture));

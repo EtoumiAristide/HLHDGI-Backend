@@ -2,15 +2,14 @@ package com.elpandor.hlh.modules.parametrage.organisations.model;
 
 import com.elpandor.hlh.common.entities.AuditModel;
 import jakarta.persistence.*;
+import jakarta.persistence.Table;
 import jakarta.validation.constraints.Size;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
+import org.hibernate.annotations.*;
 import org.hibernate.annotations.Cache;
-import org.hibernate.annotations.CacheConcurrencyStrategy;
-import org.hibernate.annotations.SQLDelete;
-import org.hibernate.annotations.SQLRestriction;
 import org.springframework.cache.annotation.Cacheable;
 
 @Getter
@@ -51,5 +50,7 @@ public class Organisation extends AuditModel {
     private Integer indexLectureFichier;
     private Boolean isOrderedByPaiementMethod;
     private Boolean isPrixUnitaireDefined;
+    private Boolean isFactureInitiale;
+    private Boolean isTDTBaseTVA = Boolean.FALSE;
 
 }

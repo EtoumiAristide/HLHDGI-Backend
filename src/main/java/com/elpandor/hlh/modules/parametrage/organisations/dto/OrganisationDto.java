@@ -26,6 +26,8 @@ public class OrganisationDto {
     private Integer indexLectureFichier;
     private Boolean isOrderedByPaiementMethod;
     private Boolean isPrixUnitaireDefined;
+    private Boolean isFactureInitiale;
+    private Boolean isTDTBaseTVA;
 
 //    private MultipartFile image;
 }

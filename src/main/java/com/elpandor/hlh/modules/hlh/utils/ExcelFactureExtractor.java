@@ -91,7 +91,7 @@ public class ExcelFactureExtractor {
                     }
 
                     if (foundClientSection) {
-                        if ("SOCIETE".equalsIgnoreCase(cellValue.trim()) || "CLIENT".equalsIgnoreCase(cellValue.trim())) {
+                        if ("SOCIETE".equalsIgnoreCase(cellValue.trim()) || "CLIENT".equalsIgnoreCase(cellValue.trim()) || "SOCIETE / CLIENT".equalsIgnoreCase(cellValue.trim())) {
                             // Le nom du client est dans la cellule suivante
                             Cell clientCell = row.getCell(cell.getColumnIndex() + 2);
                             if (clientCell != null && !clientCell.getStringCellValue().trim().isEmpty()) {
