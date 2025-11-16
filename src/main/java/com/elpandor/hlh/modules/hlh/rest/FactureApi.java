@@ -3,7 +3,7 @@ package com.elpandor.hlh.modules.hlh.rest;
 import com.elpandor.hlh.common.service.impl.FileStorageServiceImpl;
 import com.elpandor.hlh.modules.hlh.model.ModePaiement;
 import com.elpandor.hlh.modules.hlh.model.TypeClient;
-import com.elpandor.hlh.modules.hlh.model.dto.payload.BKExtractedData;
+import com.elpandor.hlh.modules.hlh.model.dto.payload.*;
 import com.elpandor.hlh.modules.hlh.service.impl.BurgerKingApimServiceImpl;
 import com.elpandor.hlh.modules.hlh.service.impl.HLHApimServiceImpl;
 import com.elpandor.hlh.modules.hlh.utils.ExcelDataExtraction;
@@ -11,14 +11,14 @@ import com.elpandor.hlh.modules.hlh.utils.ExcelFactureExtractor;
 import com.elpandor.hlh.common.utils.Utilities;
 import com.elpandor.hlh.modules.hlh.model.TypeFacture;
 import com.elpandor.hlh.modules.hlh.model.dto.FactureDto;
-import com.elpandor.hlh.modules.hlh.model.dto.payload.FacturePayload;
-import com.elpandor.hlh.modules.hlh.model.dto.payload.TokenResponse;
 import com.elpandor.hlh.modules.hlh.service.ApimService;
 import com.elpandor.hlh.modules.hlh.service.FactureService;
 import com.elpandor.hlh.modules.parametrage.organisations.dto.EtablissementDto;
 import com.elpandor.hlh.modules.parametrage.organisations.dto.PointVenteDto;
 import com.elpandor.hlh.modules.parametrage.organisations.service.EtablissementService;
 import com.elpandor.hlh.modules.parametrage.organisations.service.PointVenteService;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.util.JSONPObject;
 import io.swagger.v3.core.util.Json;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -179,44 +179,199 @@ public class FactureApi {
 //            List<MyObject> objects = ExcelParser.parseExcelFile(is);
             //ExcelParser.parseExcelFile(is);
             ExcelFactureExtractor extractor = new ExcelFactureExtractor();
-            System.out.println("etablissement.getOrganisation() " + etablissement);
+//            System.out.println("etablissement.getOrganisation() " + etablissement);
             List<FacturePayload> factures = new ArrayList<>();
+            BKExtractedData bkExtractedData = new BKExtractedData();
 
             if (etablissement.getOrganisation() != null) {
                 if (!etablissement.getOrganisation().getIsFactureInitiale()) {
                     factures = extractor.extractFacture(file.getInputStream(), etablissement.getOrganisation().getIndexLectureFichier());
                 } else {
-                    BKExtractedData bkExtractedData = new ExcelDataExtraction().extractDataFromExcel(file);
+                    bkExtractedData = new ExcelDataExtraction().extractDataFromExcel(file);
+//                    System.out.println("bkExtractedData " + bkExtractedData);
+                    //Constitution de la facture
+                    FacturePayload factureCash = new FacturePayload();
+                    FacturePayload factureCC = new FacturePayload();
+                    FacturePayload factureWave = new FacturePayload();
+                    List<LigneProduitPayload> ligneProduitsCash = new ArrayList<>();
+                    List<LigneProduitPayload> ligneProduitsCC = new ArrayList<>();
+                    List<LigneProduitPayload> ligneProduitsWave = new ArrayList<>();
 
-                    //bkExtractedData.getPayments().forEach();
+                    //CASH
+                    AtomicReference<Double> totalCash = new AtomicReference<>((double) 0);
+                    AtomicReference<Integer> nbCash = new AtomicReference<>((int) 0);
+                    bkExtractedData.getPayments()
+                            .stream()
+                            .filter(payment -> (payment.getPaymentType() == Payment.PaymentType.CASH || payment.getPaymentType() == Payment.PaymentType.HD_GLOVO) && payment.getTotal() != null)
+                            .forEach(payment -> {
+                                if (!payment.getCheckNumber().toLowerCase().contains("total")) {
+                                    totalCash.updateAndGet(v -> (v + payment.getTotal().doubleValue()));
+                                    nbCash.updateAndGet(v -> (v + 1));
+                                }
+                            });
+                    LigneProduitPayload ligneProduitCash = new LigneProduitPayload();
+                    ligneProduitCash.setProduit("Ventes en espèce");
+                    ligneProduitCash.setMontantHT(totalCash.get());
+                    ligneProduitCash.setQuantite(nbCash.get());
+                    ligneProduitsCash.add(ligneProduitCash);
+
+                    ClientPayload clientCash = new ClientPayload();
+                    clientCash.setNom("CASH");
+                    clientCash.setNumeroCC("");
+
+                    //Montant & taxes
+                    TotauxPayload totauxPayloadCash = new TotauxPayload();
+                    totauxPayloadCash.setHt(totalCash.get());
+
+                    TaxePayload tdtCash = new TaxePayload();
+                    tdtCash.setBase(totalCash.get());
+                    tdtCash.setTaux(1.5);
+                    tdtCash.setMontant(totalCash.get() * 0.015);//1.5%
+                    totauxPayloadCash.setTdt(tdtCash);
+
+                    TaxePayload tvaCash = new TaxePayload();
+                    tvaCash.setTaux(18.0);
+                    tvaCash.setBase(totalCash.get() + tdtCash.getMontant());
+                    tvaCash.setMontant(tvaCash.getBase() * 0.18);
+                    totauxPayloadCash.setTva(tvaCash);
+
+                    totauxPayloadCash.setTtc(totauxPayloadCash.getHt() + tdtCash.getMontant() + tvaCash.getMontant());
+                    totauxPayloadCash.setModePaiement(ModePaiement.cash.toString());
+
+
+                    factureCash.setSheetName("CASH");
+                    factureCash.setLignes(ligneProduitsCash);
+                    factureCash.setClientPayload(clientCash);
+                    factureCash.setTotauxPayload(totauxPayloadCash);
+
+                    //WAVE
+                    AtomicReference<Double> totalWave = new AtomicReference<>((double) 0);
+                    AtomicReference<Integer> nbWave = new AtomicReference<>((int) 0);
+                    bkExtractedData.getPayments()
+                            .stream()
+                            .filter(payment -> payment.getPaymentType() == Payment.PaymentType.CASH_WAVE && payment.getTotal() != null)
+                            .forEach(payment -> {
+                                if (!payment.getCheckNumber().toLowerCase().contains("total")) {
+                                    totalWave.updateAndGet(v -> (v + payment.getTotal().doubleValue()));
+                                    nbWave.updateAndGet(v -> (v + 1));
+                                }
+                            });
+                    LigneProduitPayload ligneProduitWave = new LigneProduitPayload();
+                    ligneProduitWave.setProduit("Ventes via Wave");
+                    ligneProduitWave.setMontantHT(totalWave.get());
+                    ligneProduitWave.setQuantite(nbWave.get());
+                    ligneProduitsWave.add(ligneProduitWave);
+
+                    ClientPayload clientWave = new ClientPayload();
+                    clientWave.setNom("WAVE");
+                    clientWave.setNumeroCC("");
+
+                    //Montant & taxes
+                    TotauxPayload totauxPayloadWave = new TotauxPayload();
+                    totauxPayloadWave.setHt(totalWave.get());
+
+                    TaxePayload tdtWave = new TaxePayload();
+                    tdtWave.setBase(totalWave.get());
+                    tdtWave.setTaux(1.5);
+                    tdtWave.setMontant(totalCash.get() * 0.015);//1.5%
+                    totauxPayloadWave.setTdt(tdtWave);
+
+                    TaxePayload tvaWave = new TaxePayload();
+                    tvaWave.setTaux(18.0);
+                    tvaWave.setBase(totalWave.get() + tdtWave.getMontant());
+                    tvaWave.setMontant(tvaWave.getBase() * 0.18);
+                    totauxPayloadWave.setTva(tvaWave);
+
+                    totauxPayloadWave.setTtc(totauxPayloadWave.getHt() + tdtWave.getMontant() + tvaWave.getMontant());
+                    totauxPayloadWave.setModePaiement(ModePaiement.mobilemoney.toString());
+
+                    factureWave.setSheetName("WAVE");
+                    factureWave.setLignes(ligneProduitsWave);
+                    factureWave.setClientPayload(clientWave);
+                    factureWave.setTotauxPayload(totauxPayloadWave);
+
+                    //CC
+                    AtomicReference<Double> totalCC = new AtomicReference<>((double) 0);
+                    AtomicReference<Integer> nbCC = new AtomicReference<>((int) 0);
+                    bkExtractedData.getPayments()
+                            .stream()
+                            .filter(payment -> payment.getPaymentType() == Payment.PaymentType.BACKUP_CC && payment.getTotal() != null)
+                            .forEach(payment -> {
+                                if (!payment.getCheckNumber().toLowerCase().contains("total")) {
+                                    totalCC.updateAndGet(v -> (v + payment.getTotal().doubleValue()));
+                                    nbCC.updateAndGet(v -> (v + 1));
+                                }
+                            });
+                    LigneProduitPayload ligneProduitCC = new LigneProduitPayload();
+                    ligneProduitCC.setProduit("Ventes via cartes bancaires");
+                    ligneProduitCC.setMontantHT(totalCC.get());
+                    ligneProduitCC.setQuantite(nbCC.get());
+                    ligneProduitsCC.add(ligneProduitCC);
+
+                    ClientPayload clientCC = new ClientPayload();
+                    clientCC.setNom("CC");
+                    clientCC.setNumeroCC("");
+
+                    //Montant & taxes
+                    TotauxPayload totauxPayloadCC = new TotauxPayload();
+                    totauxPayloadCC.setHt(totalCC.get());
+
+                    TaxePayload tdtCC = new TaxePayload();
+                    tdtCC.setBase(totalCash.get());
+                    tdtCC.setTaux(1.5);
+                    tdtCC.setMontant(totalCash.get() * 0.015);//1.5%
+                    totauxPayloadCC.setTdt(tdtCC);
+
+                    TaxePayload tvaCC = new TaxePayload();
+                    tvaCC.setTaux(18.0);
+                    tvaCC.setBase(totalCC.get() + tdtCC.getMontant());
+                    tvaCC.setMontant(tvaCC.getBase() * 0.18);
+                    totauxPayloadCC.setTva(tvaCC);
+
+                    totauxPayloadCC.setTtc(totauxPayloadCC.getHt() + tdtCC.getMontant() + tvaCC.getMontant());
+                    totauxPayloadCC.setModePaiement(ModePaiement.card.toString());
+
+                    factureCC.setSheetName("CC");
+                    factureCC.setLignes(ligneProduitsCC);
+                    factureCC.setClientPayload(clientCC);
+                    factureCC.setTotauxPayload(totauxPayloadCC);
+
+                    //Mise à jour de la facture générale
+                    factures.add(factureCash);
+                    factures.add(factureWave);
+                    factures.add(factureCC);
                 }
-                System.out.println("factures " + factures);
+                //System.out.println("factures " + factures);
             }
             List<String> finalGroups = groups;
             factures.forEach(facturePayload -> {
                 facturePayload.setTypeFacture(TypeFacture.valueOf(typeFacture));
                 facturePayload.setTypeClient(TypeClient.valueOf(typeClient));
-                if (etablissement != null) {
-                    if (etablissement.getOrganisation().getIsOrderedByPaiementMethod()) {
-                        facturePayload.setModePaiement(facturePayload.getSheetName().toLowerCase().contains("mobile money") ? ModePaiement.mobilemoney : (facturePayload.getSheetName().equalsIgnoreCase("cash") ? ModePaiement.cash : ModePaiement.card));
+                if (etablissement.getOrganisation().getIsOrderedByPaiementMethod()) {
+                    facturePayload.setModePaiement(facturePayload.getSheetName().toLowerCase().contains("mobile money") ? ModePaiement.mobilemoney : (facturePayload.getSheetName().equalsIgnoreCase("cash") ? ModePaiement.cash : ModePaiement.card));
 
-                        if (etablissement.getOrganisation().getIsPrixUnitaireDefined()) {
-                            //On ajoute le prix unitaire dans les données
-                            facturePayload.getLignes().forEach(ligneProduitPayload -> {
-                                ligneProduitPayload.setPrixUnitaireHT(ligneProduitPayload.getMontantHT() / ligneProduitPayload.getQuantite());
-                            });
-                        }
-                    } else {
-                        facturePayload.setModePaiement(ModePaiement.valueOf(modePaiement));
+                    if (etablissement.getOrganisation().getIsPrixUnitaireDefined()) {
+                        //On ajoute le prix unitaire dans les données
+                        facturePayload.getLignes().forEach(ligneProduitPayload -> {
+                            ligneProduitPayload.setPrixUnitaireHT(ligneProduitPayload.getMontantHT() / ligneProduitPayload.getQuantite());
+                        });
                     }
+                } else {
+                    facturePayload.setModePaiement(ModePaiement.valueOf(modePaiement));
                 }
                 facturePayload.setEntreprise(finalGroups.get(0));
                 facturePayload.setPointVente(pointVente);
             });
             //facture.setTypeFacture(TypeFacture.valueOf(typeFacture));
 
+            Map<String, Object> result = new HashMap<>();
+            result.put("factures", factures);
+            if (bkExtractedData.getPayments() != null) {
+                result.put("payments", bkExtractedData.getPayments().stream().filter(payment -> payment.getTotal() != null).toList());
+            }
+
 //            System.out.println(facture);
-            return Utilities.createSuccessResponse(HttpStatus.OK, factures, "Fichier chargé et traité avec succès");
+            return Utilities.createSuccessResponse(HttpStatus.OK, result, "Fichier chargé et traité avec succès");
 
         } catch (IOException e) {
             log.error("IOException occurred while processing file", e);
@@ -272,26 +427,187 @@ public class FactureApi {
 //            List<MyObject> objects = ExcelParser.parseExcelFile(is);
             //ExcelParser.parseExcelFile(is);
             ExcelFactureExtractor extractor = new ExcelFactureExtractor();
-            List<FacturePayload> factures = extractor.extractFacture(is, etablissement != null ? etablissement.getOrganisation().getIndexLectureFichier() : 0);
+//            System.out.println("etablissement.getOrganisation() " + etablissement);
+            List<FacturePayload> factures = new ArrayList<>();
+            BKExtractedData bkExtractedData = new BKExtractedData();
+
+            if (etablissement.getOrganisation() != null) {
+                if (!etablissement.getOrganisation().getIsFactureInitiale()) {
+                    factures = extractor.extractFacture(file.getInputStream(), etablissement.getOrganisation().getIndexLectureFichier());
+                } else {
+                    bkExtractedData = new ExcelDataExtraction().extractDataFromExcel(file);
+//                    System.out.println("bkExtractedData " + bkExtractedData);
+                    //Constitution de la facture
+                    FacturePayload factureCash = new FacturePayload();
+                    FacturePayload factureCC = new FacturePayload();
+                    FacturePayload factureWave = new FacturePayload();
+                    List<LigneProduitPayload> ligneProduitsCash = new ArrayList<>();
+                    List<LigneProduitPayload> ligneProduitsCC = new ArrayList<>();
+                    List<LigneProduitPayload> ligneProduitsWave = new ArrayList<>();
+
+                    //CASH
+                    AtomicReference<Double> totalCash = new AtomicReference<>((double) 0);
+                    AtomicReference<Integer> nbCash = new AtomicReference<>((int) 0);
+                    bkExtractedData.getPayments()
+                            .stream()
+                            .filter(payment -> (payment.getPaymentType() == Payment.PaymentType.CASH || payment.getPaymentType() == Payment.PaymentType.HD_GLOVO) && payment.getTotal() != null)
+                            .forEach(payment -> {
+                                if (!payment.getCheckNumber().toLowerCase().contains("total")) {
+                                    totalCash.updateAndGet(v -> (v + payment.getTotal().doubleValue()));
+                                    nbCash.updateAndGet(v -> (v + 1));
+                                }
+                            });
+                    LigneProduitPayload ligneProduitCash = new LigneProduitPayload();
+                    ligneProduitCash.setProduit("Ventes en espèce");
+                    ligneProduitCash.setMontantHT(totalCash.get());
+                    ligneProduitCash.setQuantite(nbCash.get());
+                    ligneProduitsCash.add(ligneProduitCash);
+
+                    ClientPayload clientCash = new ClientPayload();
+                    clientCash.setNom("CASH");
+                    clientCash.setNumeroCC("");
+
+                    //Montant & taxes
+                    TotauxPayload totauxPayloadCash = new TotauxPayload();
+                    totauxPayloadCash.setHt(totalCash.get());
+
+                    TaxePayload tdtCash = new TaxePayload();
+                    tdtCash.setBase(totalCash.get());
+                    tdtCash.setTaux(1.5);
+                    tdtCash.setMontant(totalCash.get() * 0.015);//1.5%
+                    totauxPayloadCash.setTdt(tdtCash);
+
+                    TaxePayload tvaCash = new TaxePayload();
+                    tvaCash.setTaux(18.0);
+                    tvaCash.setBase(totalCash.get() + tdtCash.getMontant());
+                    tvaCash.setMontant(tvaCash.getBase() * 0.18);
+                    totauxPayloadCash.setTva(tvaCash);
+
+                    totauxPayloadCash.setTtc(totauxPayloadCash.getHt() + tdtCash.getMontant() + tvaCash.getMontant());
+                    totauxPayloadCash.setModePaiement(ModePaiement.cash.toString());
+
+
+                    factureCash.setSheetName("CASH");
+                    factureCash.setLignes(ligneProduitsCash);
+                    factureCash.setClientPayload(clientCash);
+                    factureCash.setTotauxPayload(totauxPayloadCash);
+
+                    //WAVE
+                    AtomicReference<Double> totalWave = new AtomicReference<>((double) 0);
+                    AtomicReference<Integer> nbWave = new AtomicReference<>((int) 0);
+                    bkExtractedData.getPayments()
+                            .stream()
+                            .filter(payment -> payment.getPaymentType() == Payment.PaymentType.CASH_WAVE && payment.getTotal() != null)
+                            .forEach(payment -> {
+                                if (!payment.getCheckNumber().toLowerCase().contains("total")) {
+                                    totalWave.updateAndGet(v -> (v + payment.getTotal().doubleValue()));
+                                    nbWave.updateAndGet(v -> (v + 1));
+                                }
+                            });
+                    LigneProduitPayload ligneProduitWave = new LigneProduitPayload();
+                    ligneProduitWave.setProduit("Ventes via Wave");
+                    ligneProduitWave.setMontantHT(totalWave.get());
+                    ligneProduitWave.setQuantite(nbWave.get());
+                    ligneProduitsWave.add(ligneProduitWave);
+
+                    ClientPayload clientWave = new ClientPayload();
+                    clientWave.setNom("WAVE");
+                    clientWave.setNumeroCC("");
+
+                    //Montant & taxes
+                    TotauxPayload totauxPayloadWave = new TotauxPayload();
+                    totauxPayloadWave.setHt(totalWave.get());
+
+                    TaxePayload tdtWave = new TaxePayload();
+                    tdtWave.setBase(totalWave.get());
+                    tdtWave.setTaux(1.5);
+                    tdtWave.setMontant(totalCash.get() * 0.015);//1.5%
+                    totauxPayloadWave.setTdt(tdtWave);
+
+                    TaxePayload tvaWave = new TaxePayload();
+                    tvaWave.setTaux(18.0);
+                    tvaWave.setBase(totalWave.get() + tdtWave.getMontant());
+                    tvaWave.setMontant(tvaWave.getBase() * 0.18);
+                    totauxPayloadWave.setTva(tvaWave);
+
+                    totauxPayloadWave.setTtc(totauxPayloadWave.getHt() + tdtWave.getMontant() + tvaWave.getMontant());
+                    totauxPayloadWave.setModePaiement(ModePaiement.mobilemoney.toString());
+
+                    factureWave.setSheetName("WAVE");
+                    factureWave.setLignes(ligneProduitsWave);
+                    factureWave.setClientPayload(clientWave);
+                    factureWave.setTotauxPayload(totauxPayloadWave);
+
+                    //CC
+                    AtomicReference<Double> totalCC = new AtomicReference<>((double) 0);
+                    AtomicReference<Integer> nbCC = new AtomicReference<>((int) 0);
+                    bkExtractedData.getPayments()
+                            .stream()
+                            .filter(payment -> payment.getPaymentType() == Payment.PaymentType.BACKUP_CC && payment.getTotal() != null)
+                            .forEach(payment -> {
+                                if (!payment.getCheckNumber().toLowerCase().contains("total")) {
+                                    totalCC.updateAndGet(v -> (v + payment.getTotal().doubleValue()));
+                                    nbCC.updateAndGet(v -> (v + 1));
+                                }
+                            });
+                    LigneProduitPayload ligneProduitCC = new LigneProduitPayload();
+                    ligneProduitCC.setProduit("Ventes via cartes bancaires");
+                    ligneProduitCC.setMontantHT(totalCC.get());
+                    ligneProduitCC.setQuantite(nbCC.get());
+                    ligneProduitsCC.add(ligneProduitCC);
+
+                    ClientPayload clientCC = new ClientPayload();
+                    clientCC.setNom("CC");
+                    clientCC.setNumeroCC("");
+
+                    //Montant & taxes
+                    TotauxPayload totauxPayloadCC = new TotauxPayload();
+                    totauxPayloadCC.setHt(totalCC.get());
+
+                    TaxePayload tdtCC = new TaxePayload();
+                    tdtCC.setBase(totalCash.get());
+                    tdtCC.setTaux(1.5);
+                    tdtCC.setMontant(totalCash.get() * 0.015);//1.5%
+                    totauxPayloadCC.setTdt(tdtCC);
+
+                    TaxePayload tvaCC = new TaxePayload();
+                    tvaCC.setTaux(18.0);
+                    tvaCC.setBase(totalCC.get() + tdtCC.getMontant());
+                    tvaCC.setMontant(tvaCC.getBase() * 0.18);
+                    totauxPayloadCC.setTva(tvaCC);
+
+                    totauxPayloadCC.setTtc(totauxPayloadCC.getHt() + tdtCC.getMontant() + tvaCC.getMontant());
+                    totauxPayloadCC.setModePaiement(ModePaiement.card.toString());
+
+                    factureCC.setSheetName("CC");
+                    factureCC.setLignes(ligneProduitsCC);
+                    factureCC.setClientPayload(clientCC);
+                    factureCC.setTotauxPayload(totauxPayloadCC);
+
+                    //Mise à jour de la facture générale
+                    factures.add(factureCash);
+                    factures.add(factureWave);
+                    factures.add(factureCC);
+                }
+                //System.out.println("factures " + factures);
+            }
 
             List<String> finalGroups = groups;
             factures.forEach(facturePayload -> {
                 facturePayload.setTypeFacture(TypeFacture.valueOf(typeFacture));
                 facturePayload.setTypeClient(TypeClient.valueOf(typeClient));
-                if (etablissement != null) {
-                    if (etablissement.getOrganisation().getIsOrderedByPaiementMethod()) {
-                        facturePayload.setModePaiement(facturePayload.getSheetName().toLowerCase().contains("mobile money") ? ModePaiement.mobilemoney : (facturePayload.getSheetName().equalsIgnoreCase("cash") ? ModePaiement.cash : ModePaiement.card));
+                if (etablissement.getOrganisation().getIsOrderedByPaiementMethod()) {
+                    facturePayload.setModePaiement(facturePayload.getSheetName().toLowerCase().contains("mobile money") ? ModePaiement.mobilemoney : (facturePayload.getSheetName().equalsIgnoreCase("cash") ? ModePaiement.cash : ModePaiement.card));
 
-                        if (etablissement.getOrganisation().getIsPrixUnitaireDefined()) {
-                            //On ajoute le prix unitaire dans les données
-                            facturePayload.getLignes().forEach(ligneProduitPayload -> {
-                                ligneProduitPayload.setPrixUnitaireHT(ligneProduitPayload.getMontantHT() / ligneProduitPayload.getQuantite());
-                            });
-                        }
-
-                    } else {
-                        facturePayload.setModePaiement(ModePaiement.valueOf(modePaiement));
+                    if (etablissement.getOrganisation().getIsPrixUnitaireDefined()) {
+                        //On ajoute le prix unitaire dans les données
+                        facturePayload.getLignes().forEach(ligneProduitPayload -> {
+                            ligneProduitPayload.setPrixUnitaireHT(ligneProduitPayload.getMontantHT() / ligneProduitPayload.getQuantite());
+                        });
                     }
+
+                } else {
+                    facturePayload.setModePaiement(ModePaiement.valueOf(modePaiement));
                 }
                 facturePayload.setEntreprise(finalGroups.get(0));
                 facturePayload.setPointVente(pointVente);
@@ -317,10 +633,11 @@ public class FactureApi {
                     response = bkApimService.sendData(tokenResponse.getAccessToken(), facture);
                 }
                 PointVenteDto pointVenteDto = pointVenteService.findByNom(pointVente);
+                assert response != null;
                 if (response.getStatusCode().is2xxSuccessful()) {
                     FactureDto factureDto = FactureDto.builder()
                             .numFacture(facture.getNumeroFacture())
-                            .dateFacture(LocalDate.parse(facture.getDateFacture(), DateTimeFormatter.ofPattern("dd/MM/yyyy")))
+                            .dateFacture(facture.getDateFacture() != null ? LocalDate.parse(facture.getDateFacture(), DateTimeFormatter.ofPattern("dd/MM/yyyy")) : LocalDate.now())
                             .nomClient(facture.getClientPayload().getNom())
                             //.lienFichier(storeName)
                             .typeFacture(facture.getTypeFacture())
@@ -328,6 +645,7 @@ public class FactureApi {
                             .modePaiement(facture.getModePaiement())
                             .dataSend(request)
                             .reponseFNE(response.getBody())
+                            .bkExtractedData(new ObjectMapper().writeValueAsString(bkExtractedData))
                             .pointVente(pointVenteDto)
                             .build();
 
