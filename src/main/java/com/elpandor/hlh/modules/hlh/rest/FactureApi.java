@@ -36,6 +36,7 @@ import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.text.SimpleDateFormat;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
@@ -273,7 +274,7 @@ public class FactureApi {
                     TaxePayload tdtWave = new TaxePayload();
                     tdtWave.setBase(totalWave.get());
                     tdtWave.setTaux(1.5);
-                    tdtWave.setMontant(totalCash.get() * 0.015);//1.5%
+                    tdtWave.setMontant(totalWave.get() * 0.015);//1.5%
                     totauxPayloadWave.setTdt(tdtWave);
 
                     TaxePayload tvaWave = new TaxePayload();
@@ -285,7 +286,7 @@ public class FactureApi {
                     totauxPayloadWave.setTtc(totauxPayloadWave.getHt() + tdtWave.getMontant() + tvaWave.getMontant());
                     totauxPayloadWave.setModePaiement(ModePaiement.mobilemoney.toString());
 
-                    factureWave.setSheetName("WAVE");
+                    factureWave.setSheetName("Mobile Money");
                     factureWave.setLignes(ligneProduitsWave);
                     factureWave.setClientPayload(clientWave);
                     factureWave.setTotauxPayload(totauxPayloadWave);
@@ -317,9 +318,9 @@ public class FactureApi {
                     totauxPayloadCC.setHt(totalCC.get());
 
                     TaxePayload tdtCC = new TaxePayload();
-                    tdtCC.setBase(totalCash.get());
+                    tdtCC.setBase(totalCC.get());
                     tdtCC.setTaux(1.5);
-                    tdtCC.setMontant(totalCash.get() * 0.015);//1.5%
+                    tdtCC.setMontant(totalCC.get() * 0.015);//1.5%
                     totauxPayloadCC.setTdt(tdtCC);
 
                     TaxePayload tvaCC = new TaxePayload();
@@ -521,7 +522,7 @@ public class FactureApi {
                     TaxePayload tdtWave = new TaxePayload();
                     tdtWave.setBase(totalWave.get());
                     tdtWave.setTaux(1.5);
-                    tdtWave.setMontant(totalCash.get() * 0.015);//1.5%
+                    tdtWave.setMontant(totalWave.get() * 0.015);//1.5%
                     totauxPayloadWave.setTdt(tdtWave);
 
                     TaxePayload tvaWave = new TaxePayload();
@@ -533,7 +534,7 @@ public class FactureApi {
                     totauxPayloadWave.setTtc(totauxPayloadWave.getHt() + tdtWave.getMontant() + tvaWave.getMontant());
                     totauxPayloadWave.setModePaiement(ModePaiement.mobilemoney.toString());
 
-                    factureWave.setSheetName("WAVE");
+                    factureWave.setSheetName("Mobile Money");
                     factureWave.setLignes(ligneProduitsWave);
                     factureWave.setClientPayload(clientWave);
                     factureWave.setTotauxPayload(totauxPayloadWave);
@@ -565,9 +566,9 @@ public class FactureApi {
                     totauxPayloadCC.setHt(totalCC.get());
 
                     TaxePayload tdtCC = new TaxePayload();
-                    tdtCC.setBase(totalCash.get());
+                    tdtCC.setBase(totalCC.get());
                     tdtCC.setTaux(1.5);
-                    tdtCC.setMontant(totalCash.get() * 0.015);//1.5%
+                    tdtCC.setMontant(totalCC.get() * 0.015);//1.5%
                     totauxPayloadCC.setTdt(tdtCC);
 
                     TaxePayload tvaCC = new TaxePayload();
@@ -616,7 +617,7 @@ public class FactureApi {
 
 //            System.out.println(factures);
             //Sauvegarde du fichier
-            //String storeName = fileStorageService.storeFile(file, "Facture-" + new SimpleDateFormat("yyyyMMdddHHmmss").format(new Date()));
+            String storeName = fileStorageService.storeFile(file, "Facture-" + new SimpleDateFormat("yyyyMMdddHHmmss").format(new Date()));
 
             for (FacturePayload facture : factures) {
                 //Appel de l'api DGI
@@ -634,12 +635,22 @@ public class FactureApi {
                 }
                 PointVenteDto pointVenteDto = pointVenteService.findByNom(pointVente);
                 assert response != null;
+
+                //Gestion de la date de facture
+                LocalDate dateFacture = null;
+                try {
+                    dateFacture = facture.getDateFacture() != null ? LocalDate.parse(facture.getDateFacture(), DateTimeFormatter.ofPattern("dd/MM/yyyy")) : LocalDate.now();
+                } catch (Exception ex) {
+                    dateFacture = LocalDate.now();
+                    ex.printStackTrace();
+                }
+
                 if (response.getStatusCode().is2xxSuccessful()) {
                     FactureDto factureDto = FactureDto.builder()
                             .numFacture(facture.getNumeroFacture())
-                            .dateFacture(facture.getDateFacture() != null ? LocalDate.parse(facture.getDateFacture(), DateTimeFormatter.ofPattern("dd/MM/yyyy")) : LocalDate.now())
+                            .dateFacture(dateFacture)
                             .nomClient(facture.getClientPayload().getNom())
-                            //.lienFichier(storeName)
+                            .lienFichier(storeName)
                             .typeFacture(facture.getTypeFacture())
                             .typeClient(facture.getTypeClient())
                             .modePaiement(facture.getModePaiement())
