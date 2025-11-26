@@ -20,6 +20,10 @@ public class Payment {
 
     private BigDecimal tip;
 
+    private BigDecimal tdt;
+
+    private BigDecimal tva;
+
     private BigDecimal total;
 
     private String emp;

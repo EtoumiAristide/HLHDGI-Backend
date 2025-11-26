@@ -21,8 +21,9 @@ public class ExcelDataExtraction {
         BKExtractedData extractedData = new BKExtractedData();
 
         Workbook workbook = new XSSFWorkbook(file.getInputStream());
-        Sheet sheet = workbook.getSheetAt(0); // Première feuille
-
+//        Sheet sheet = workbook.getSheetAt(0); // Première feuille
+        Sheet sheet = workbook.getSheetAt(1); // 2nde feuille: FICHIER REVU
+//        System.out.println(sheet.getSheetName());
         extractedData.setPayments(extractPayments(sheet));
         extractedData.setComps(extractComps(sheet));
         extractedData.setPromos(extractPromos(sheet));
@@ -41,6 +42,7 @@ public class ExcelDataExtraction {
 
         for (Row row : sheet) {
             String firstCellValue = getCellStringValue(row.getCell(1));
+//            String firstCellValue = getCellStringValue(row.getCell(0));
 
             // Détection des sections
             if (firstCellValue != null) {
@@ -74,17 +76,26 @@ public class ExcelDataExtraction {
             // Extraction des données de paiement
             if ((inCashSection || inBackupCCSection || inHDGlovoSection || inCashWaveSection)
                     && isPaymentDataRow(row)) {
-
                 Payment payment = new Payment();
                 payment.setCheckNumber(getCellStringValue(row.getCell(1)));
                 payment.setCardNumber(getCellStringValue(row.getCell(2)));
                 payment.setExp(getCellStringValue(row.getCell(3)));
                 payment.setQty(getCellIntegerValue(row.getCell(4)));
                 payment.setAmount(getCellBigDecimalValue(row.getCell(5)));
-                payment.setTip(getCellBigDecimalValue(row.getCell(7)));
+                //payment.setTip(getCellBigDecimalValue(row.getCell(7)));
+                payment.setTdt(getCellBigDecimalValue(row.getCell(6)));
+                payment.setTva(getCellBigDecimalValue(row.getCell(7)));
                 payment.setTotal(getCellBigDecimalValue(row.getCell(8)));
                 payment.setEmp(getCellStringValue(row.getCell(9)));
-
+//                payment.setCheckNumber(getCellStringValue(row.getCell(0)));
+//                payment.setCardNumber(getCellStringValue(row.getCell(1)));
+//                payment.setExp(getCellStringValue(row.getCell(2)));
+//                payment.setQty(getCellIntegerValue(row.getCell(3)));
+//                payment.setAmount(getCellBigDecimalValue(row.getCell(4)));
+//                payment.setTip(getCellBigDecimalValue(row.getCell(6)));
+//                payment.setTotal(getCellBigDecimalValue(row.getCell(7)));
+//                payment.setEmp(getCellStringValue(row.getCell(8)));
+//                System.out.println("payment " + payment);
                 // Détermination du type de paiement
                 if (inCashSection) {
                     payment.setPaymentType(Payment.PaymentType.CASH);
@@ -113,6 +124,7 @@ public class ExcelDataExtraction {
 
         for (Row row : sheet) {
             String firstCellValue = getCellStringValue(row.getCell(1));
+//            String firstCellValue = getCellStringValue(row.getCell(0));
 
             // Détection des sections Comps
             if (firstCellValue != null) {
@@ -148,6 +160,16 @@ public class ExcelDataExtraction {
                 comp.setPercentTot(getCellBigDecimalValue(row.getCell(7)));
                 comp.setEmp(getCellStringValue(row.getCell(8)));
                 comp.setMgr(getCellStringValue(row.getCell(9)));
+
+//                comp.setChkNumber(getCellStringValue(row.getCell(0)));
+//                comp.setTime(getCellStringValue(row.getCell(1)));
+//                comp.setNameItem(getCellStringValue(row.getCell(2)));
+//                comp.setUnit(getCellStringValue(row.getCell(3)));
+//                comp.setQty(getCellIntegerValue(row.getCell(4)));
+//                comp.setAmount(getCellBigDecimalValue(row.getCell(5)));
+//                comp.setPercentTot(getCellBigDecimalValue(row.getCell(6)));
+//                comp.setEmp(getCellStringValue(row.getCell(7)));
+//                comp.setMgr(getCellStringValue(row.getCell(8)));
 
                 // Détermination du type de comp
                 if (inStaffMealsSection) {
@@ -231,6 +253,17 @@ public class ExcelDataExtraction {
                 } catch (NumberFormatException e) {
                     return null;
                 }
+            case FORMULA:
+//                return cell.getCellFormula();
+                // On évalue la formule et on récupère le résultat
+                FormulaEvaluator evaluator = cell.getSheet().getWorkbook().getCreationHelper().createFormulaEvaluator();
+                CellValue value = evaluator.evaluate(cell);
+
+                return switch (value.getCellType()) {
+                    case STRING -> new BigDecimal(value.getStringValue().trim());
+                    case NUMERIC -> new BigDecimal(value.getNumberValue());
+                    default -> null;
+                };
             default:
                 return null;
         }
@@ -240,6 +273,7 @@ public class ExcelDataExtraction {
         // Vérifie si la ligne contient des données de paiement valides
         String checkNumber = getCellStringValue(row.getCell(1));
         BigDecimal amount = getCellBigDecimalValue(row.getCell(5));
+//        System.out.println("amount "+amount);
         return checkNumber != null && !checkNumber.isEmpty() &&
                 !checkNumber.contains("---") && amount != null;
     }
@@ -248,6 +282,7 @@ public class ExcelDataExtraction {
         // Vérifie si la ligne contient des données comps valides
         String chkNumber = getCellStringValue(row.getCell(1));
         BigDecimal amount = getCellBigDecimalValue(row.getCell(6));
+//        String amount = getCellStringValue(row.getCell(6));
         return chkNumber != null && !chkNumber.isEmpty() &&
                 !chkNumber.contains("---") && amount != null;
     }

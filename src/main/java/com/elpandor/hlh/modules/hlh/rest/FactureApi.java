@@ -206,7 +206,8 @@ public class FactureApi {
                             .filter(payment -> (payment.getPaymentType() == Payment.PaymentType.CASH || payment.getPaymentType() == Payment.PaymentType.HD_GLOVO) && payment.getTotal() != null)
                             .forEach(payment -> {
                                 if (!payment.getCheckNumber().toLowerCase().contains("total")) {
-                                    totalCash.updateAndGet(v -> (v + payment.getTotal().doubleValue()));
+//                                    totalCash.updateAndGet(v -> (v + payment.getTotal().doubleValue()));
+                                    totalCash.updateAndGet(v -> (v + payment.getAmount().doubleValue()));
                                     nbCash.updateAndGet(v -> (v + 1));
                                 }
                             });
@@ -253,7 +254,8 @@ public class FactureApi {
                             .filter(payment -> payment.getPaymentType() == Payment.PaymentType.CASH_WAVE && payment.getTotal() != null)
                             .forEach(payment -> {
                                 if (!payment.getCheckNumber().toLowerCase().contains("total")) {
-                                    totalWave.updateAndGet(v -> (v + payment.getTotal().doubleValue()));
+//                                    totalWave.updateAndGet(v -> (v + payment.getTotal().doubleValue()));
+                                    totalWave.updateAndGet(v -> (v + payment.getAmount().doubleValue()));
                                     nbWave.updateAndGet(v -> (v + 1));
                                 }
                             });
@@ -299,7 +301,8 @@ public class FactureApi {
                             .filter(payment -> payment.getPaymentType() == Payment.PaymentType.BACKUP_CC && payment.getTotal() != null)
                             .forEach(payment -> {
                                 if (!payment.getCheckNumber().toLowerCase().contains("total")) {
-                                    totalCC.updateAndGet(v -> (v + payment.getTotal().doubleValue()));
+//                                    totalCC.updateAndGet(v -> (v + payment.getTotal().doubleValue()));
+                                    totalCC.updateAndGet(v -> (v + payment.getAmount().doubleValue()));
                                     nbCC.updateAndGet(v -> (v + 1));
                                 }
                             });
@@ -454,7 +457,8 @@ public class FactureApi {
                             .filter(payment -> (payment.getPaymentType() == Payment.PaymentType.CASH || payment.getPaymentType() == Payment.PaymentType.HD_GLOVO) && payment.getTotal() != null)
                             .forEach(payment -> {
                                 if (!payment.getCheckNumber().toLowerCase().contains("total")) {
-                                    totalCash.updateAndGet(v -> (v + payment.getTotal().doubleValue()));
+//                                    totalCash.updateAndGet(v -> (v + payment.getTotal().doubleValue()));
+                                    totalCash.updateAndGet(v -> (v + payment.getAmount().doubleValue()));
                                     nbCash.updateAndGet(v -> (v + 1));
                                 }
                             });
@@ -501,7 +505,8 @@ public class FactureApi {
                             .filter(payment -> payment.getPaymentType() == Payment.PaymentType.CASH_WAVE && payment.getTotal() != null)
                             .forEach(payment -> {
                                 if (!payment.getCheckNumber().toLowerCase().contains("total")) {
-                                    totalWave.updateAndGet(v -> (v + payment.getTotal().doubleValue()));
+//                                    totalWave.updateAndGet(v -> (v + payment.getTotal().doubleValue()));
+                                    totalWave.updateAndGet(v -> (v + payment.getAmount().doubleValue()));
                                     nbWave.updateAndGet(v -> (v + 1));
                                 }
                             });
@@ -547,7 +552,8 @@ public class FactureApi {
                             .filter(payment -> payment.getPaymentType() == Payment.PaymentType.BACKUP_CC && payment.getTotal() != null)
                             .forEach(payment -> {
                                 if (!payment.getCheckNumber().toLowerCase().contains("total")) {
-                                    totalCC.updateAndGet(v -> (v + payment.getTotal().doubleValue()));
+//                                    totalCC.updateAndGet(v -> (v + payment.getTotal().doubleValue()));
+                                    totalCC.updateAndGet(v -> (v + payment.getAmount().doubleValue()));
                                     nbCC.updateAndGet(v -> (v + 1));
                                 }
                             });
