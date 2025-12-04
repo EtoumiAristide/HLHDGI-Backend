@@ -7,22 +7,22 @@ import com.elpandor.hlh.modules.hlh.model.dto.payload.Promo;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.poi.ss.usermodel.*;
 import org.apache.poi.xssf.usermodel.XSSFWorkbook;
-import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
+import java.io.InputStream;
 import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.List;
 
 @Slf4j
-public class ExcelDataExtraction {
-    public BKExtractedData extractDataFromExcel(MultipartFile file) throws IOException {
+public class BKExcelDataExtraction {
+    public BKExtractedData extractDataFromExcel(InputStream file, Integer indexLectureFichier) throws IOException {
 
         BKExtractedData extractedData = new BKExtractedData();
 
-        Workbook workbook = new XSSFWorkbook(file.getInputStream());
+        Workbook workbook = new XSSFWorkbook(file);
 //        Sheet sheet = workbook.getSheetAt(0); // Première feuille
-        Sheet sheet = workbook.getSheetAt(1); // 2nde feuille: FICHIER REVU
+        Sheet sheet = workbook.getSheetAt(indexLectureFichier);
 //        System.out.println(sheet.getSheetName());
         extractedData.setPayments(extractPayments(sheet));
         extractedData.setComps(extractComps(sheet));

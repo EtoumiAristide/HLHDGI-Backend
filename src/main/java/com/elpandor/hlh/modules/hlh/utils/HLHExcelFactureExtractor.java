@@ -11,19 +11,13 @@ import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.List;
 
-public class ExcelFactureExtractor {
+public class HLHExcelFactureExtractor {
 
     public List<FacturePayload> extractFacture(InputStream is, Integer indexLectureFichier) throws IOException {
 
         List<FacturePayload> factures = new ArrayList<>();
 
         Workbook workbook = new XSSFWorkbook(is);
-
-        /*int indexLecture = switch (entreprise) {
-            case "HOTEL AND LUXURY HOUSING" -> 0;
-            case "SIA RESTAURATION RAPIDE COTE D'IVOIRE", "BK AEROPORT" -> 2;
-            default -> 0;
-        };*/
 
         for (int i = indexLectureFichier; i < workbook.getNumberOfSheets(); i++) {
             Sheet sheet = workbook.getSheetAt(i); // Première feuille
