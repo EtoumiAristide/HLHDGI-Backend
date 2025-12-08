@@ -92,6 +92,19 @@ public class FactureApi {
         return Utilities.createSuccessResponse(HttpStatus.NOT_FOUND, Optional.empty(), "Facture avec l'id " + id + " non trouvé");
     }
 
+    @GetMapping(path = "/bynumfne/{numfacture}")
+    public ResponseEntity<Map<String, Object>> getByNumeFactureFNE(@PathVariable("numfacture") String numfacture) {
+        log.trace("Starting processing get request for numfacture :" + numfacture);
+
+        FactureDto factureDto = factureService.findByNumFactureFNE(numfacture);
+        if (factureDto != null) {
+            return Utilities.createSuccessResponse(HttpStatus.OK, factureDto, "Facture trouvé");
+        }
+
+        log.info("Entity having id not found, numfacture : " + numfacture);
+        return Utilities.createSuccessResponse(HttpStatus.NOT_FOUND, Optional.empty(), "Facture avec le numero " + numfacture + " non trouvé");
+    }
+
     @GetMapping
     public ResponseEntity<Map<String, Object>> getAll() {
         log.trace("Starting processing getAll request!");
@@ -471,22 +484,34 @@ public class FactureApi {
 
         //CASH
         AtomicReference<Double> totalCash = new AtomicReference<>((double) 0);
+        AtomicReference<Double> totalCash2 = new AtomicReference<>((double) 0);
         AtomicReference<Integer> nbCash = new AtomicReference<>((int) 0);
+        AtomicReference<Integer> nbCash2 = new AtomicReference<>((int) 0);
         bkExtractedData.getPayments()
                 .stream()
                 .filter(payment -> (payment.getPaymentType() == Payment.PaymentType.CASH || payment.getPaymentType() == Payment.PaymentType.HD_GLOVO) && payment.getTotal() != null)
                 .forEach(payment -> {
                     if (!payment.getCheckNumber().toLowerCase().contains("total")) {
 //                                    totalCash.updateAndGet(v -> (v + payment.getTotal().doubleValue()));
-                        totalCash.updateAndGet(v -> (v + payment.getAmount().doubleValue()));
-                        nbCash.updateAndGet(v -> (v + 1));
+                        if (payment.getAmount().doubleValue() < 5000) {
+                            totalCash2.updateAndGet(v -> (v + payment.getAmount().doubleValue()));
+                            nbCash2.updateAndGet(v -> (v + 1));
+                        } else {
+                            totalCash.updateAndGet(v -> (v + payment.getAmount().doubleValue()));
+                            nbCash.updateAndGet(v -> (v + 1));
+                        }
                     }
                 });
         LigneProduitPayload ligneProduitCash = new LigneProduitPayload();
         ligneProduitCash.setProduit("Ventes en espèce");
         ligneProduitCash.setMontantHT(totalCash.get());
         ligneProduitCash.setQuantite(nbCash.get());
+        LigneProduitPayload ligneProduitCash2 = new LigneProduitPayload();
+        ligneProduitCash2.setProduit("Ventes en espèce");
+        ligneProduitCash2.setMontantHT(totalCash2.get());
+        ligneProduitCash2.setQuantite(nbCash2.get());
         ligneProduitsCash.add(ligneProduitCash);
+        ligneProduitsCash.add(ligneProduitCash2);
 
         ClientPayload clientCash = new ClientPayload();
         clientCash.setNom("CASH");
@@ -494,17 +519,17 @@ public class FactureApi {
 
         //Montant & taxes
         TotauxPayload totauxPayloadCash = new TotauxPayload();
-        totauxPayloadCash.setHt(totalCash.get());
+        totauxPayloadCash.setHt(totalCash.get() + totalCash2.get());
 
         TaxePayload tdtCash = new TaxePayload();
-        tdtCash.setBase(totalCash.get());
+        tdtCash.setBase(totalCash.get() + totalCash2.get());
         tdtCash.setTaux(1.5);
-        tdtCash.setMontant(totalCash.get() * 0.015);//1.5%
+        tdtCash.setMontant((totalCash.get() + totalCash2.get()) * 0.015);//1.5%
         totauxPayloadCash.setTdt(tdtCash);
 
         TaxePayload tvaCash = new TaxePayload();
         tvaCash.setTaux(18.0);
-        tvaCash.setBase(totalCash.get() + tdtCash.getMontant());
+        tvaCash.setBase((totalCash.get() + totalCash2.get()) + tdtCash.getMontant());
         tvaCash.setMontant(tvaCash.getBase() * 0.18);
         totauxPayloadCash.setTva(tvaCash);
 
@@ -519,22 +544,34 @@ public class FactureApi {
 
         //WAVE
         AtomicReference<Double> totalWave = new AtomicReference<>((double) 0);
+        AtomicReference<Double> totalWave2 = new AtomicReference<>((double) 0);
         AtomicReference<Integer> nbWave = new AtomicReference<>((int) 0);
+        AtomicReference<Integer> nbWave2 = new AtomicReference<>((int) 0);
         bkExtractedData.getPayments()
                 .stream()
                 .filter(payment -> payment.getPaymentType() == Payment.PaymentType.CASH_WAVE && payment.getTotal() != null)
                 .forEach(payment -> {
                     if (!payment.getCheckNumber().toLowerCase().contains("total")) {
 //                                    totalWave.updateAndGet(v -> (v + payment.getTotal().doubleValue()));
-                        totalWave.updateAndGet(v -> (v + payment.getAmount().doubleValue()));
-                        nbWave.updateAndGet(v -> (v + 1));
+                        if (payment.getAmount().doubleValue() < 5000) {
+                            totalWave2.updateAndGet(v -> (v + payment.getAmount().doubleValue()));
+                            nbWave2.updateAndGet(v -> (v + 1));
+                        } else {
+                            totalWave.updateAndGet(v -> (v + payment.getAmount().doubleValue()));
+                            nbWave.updateAndGet(v -> (v + 1));
+                        }
                     }
                 });
         LigneProduitPayload ligneProduitWave = new LigneProduitPayload();
         ligneProduitWave.setProduit("Ventes via Wave");
         ligneProduitWave.setMontantHT(totalWave.get());
         ligneProduitWave.setQuantite(nbWave.get());
+        LigneProduitPayload ligneProduitWave2 = new LigneProduitPayload();
+        ligneProduitWave2.setProduit("Ventes via Wave");
+        ligneProduitWave2.setMontantHT(totalWave2.get());
+        ligneProduitWave2.setQuantite(nbWave2.get());
         ligneProduitsWave.add(ligneProduitWave);
+        ligneProduitsWave.add(ligneProduitWave2);
 
         ClientPayload clientWave = new ClientPayload();
         clientWave.setNom("WAVE");
@@ -542,17 +579,17 @@ public class FactureApi {
 
         //Montant & taxes
         TotauxPayload totauxPayloadWave = new TotauxPayload();
-        totauxPayloadWave.setHt(totalWave.get());
+        totauxPayloadWave.setHt(totalWave.get() + totalWave2.get());
 
         TaxePayload tdtWave = new TaxePayload();
-        tdtWave.setBase(totalWave.get());
+        tdtWave.setBase(totalWave.get() + totalWave2.get());
         tdtWave.setTaux(1.5);
-        tdtWave.setMontant(totalWave.get() * 0.015);//1.5%
+        tdtWave.setMontant((totalWave.get() + totalWave2.get()) * 0.015);//1.5%
         totauxPayloadWave.setTdt(tdtWave);
 
         TaxePayload tvaWave = new TaxePayload();
         tvaWave.setTaux(18.0);
-        tvaWave.setBase(totalWave.get() + tdtWave.getMontant());
+        tvaWave.setBase((totalWave.get() + totalWave2.get()) + tdtWave.getMontant());
         tvaWave.setMontant(tvaWave.getBase() * 0.18);
         totauxPayloadWave.setTva(tvaWave);
 
@@ -566,21 +603,32 @@ public class FactureApi {
 
         //CC
         AtomicReference<Double> totalCC = new AtomicReference<>((double) 0);
+        AtomicReference<Double> totalCC2 = new AtomicReference<>((double) 0);
         AtomicReference<Integer> nbCC = new AtomicReference<>((int) 0);
+        AtomicReference<Integer> nbCC2 = new AtomicReference<>((int) 0);
         bkExtractedData.getPayments()
                 .stream()
                 .filter(payment -> payment.getPaymentType() == Payment.PaymentType.BACKUP_CC && payment.getTotal() != null)
                 .forEach(payment -> {
                     if (!payment.getCheckNumber().toLowerCase().contains("total")) {
 //                                    totalCC.updateAndGet(v -> (v + payment.getTotal().doubleValue()));
-                        totalCC.updateAndGet(v -> (v + payment.getAmount().doubleValue()));
-                        nbCC.updateAndGet(v -> (v + 1));
+                        if (payment.getAmount().doubleValue() < 5000) {
+                            totalCC2.updateAndGet(v -> (v + payment.getAmount().doubleValue()));
+                            nbCC2.updateAndGet(v -> (v + 1));
+                        } else {
+                            totalCC.updateAndGet(v -> (v + payment.getAmount().doubleValue()));
+                            nbCC.updateAndGet(v -> (v + 1));
+                        }
                     }
                 });
         LigneProduitPayload ligneProduitCC = new LigneProduitPayload();
         ligneProduitCC.setProduit("Ventes via cartes bancaires");
         ligneProduitCC.setMontantHT(totalCC.get());
         ligneProduitCC.setQuantite(nbCC.get());
+        LigneProduitPayload ligneProduitCC2 = new LigneProduitPayload();
+        ligneProduitCC2.setProduit("Ventes via cartes bancaires");
+        ligneProduitCC2.setMontantHT(totalCC2.get());
+        ligneProduitCC2.setQuantite(nbCC2.get());
         ligneProduitsCC.add(ligneProduitCC);
 
         ClientPayload clientCC = new ClientPayload();
@@ -589,17 +637,17 @@ public class FactureApi {
 
         //Montant & taxes
         TotauxPayload totauxPayloadCC = new TotauxPayload();
-        totauxPayloadCC.setHt(totalCC.get());
+        totauxPayloadCC.setHt(totalCC.get() + totalCC2.get());
 
         TaxePayload tdtCC = new TaxePayload();
-        tdtCC.setBase(totalCC.get());
+        tdtCC.setBase(totalCC.get() + totalCC2.get());
         tdtCC.setTaux(1.5);
-        tdtCC.setMontant(totalCC.get() * 0.015);//1.5%
+        tdtCC.setMontant((totalCC.get() + totalCC2.get()) * 0.015);//1.5%
         totauxPayloadCC.setTdt(tdtCC);
 
         TaxePayload tvaCC = new TaxePayload();
         tvaCC.setTaux(18.0);
-        tvaCC.setBase(totalCC.get() + tdtCC.getMontant());
+        tvaCC.setBase((totalCC.get() + totalCC2.get()) + tdtCC.getMontant());
         tvaCC.setMontant(tvaCC.getBase() * 0.18);
         totauxPayloadCC.setTva(tvaCC);
 

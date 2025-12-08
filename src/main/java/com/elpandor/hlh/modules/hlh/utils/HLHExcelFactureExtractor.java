@@ -78,7 +78,7 @@ public class HLHExcelFactureExtractor {
             for (Cell cell : row) {
                 if (cell.getCellType() == CellType.STRING) {
                     String cellValue = cell.getStringCellValue();
-                    //System.out.println("cellValue "+cellValue);
+//                    System.out.println("cellValue " + cellValue);
                     if ("Information Client".equalsIgnoreCase(cellValue.trim())) {
                         foundClientSection = true;
                         continue;
@@ -92,16 +92,16 @@ public class HLHExcelFactureExtractor {
 //                                System.out.println("clientCell.getStringCellValue() "+clientCell.getStringCellValue());
                                 client.setNom(clientCell.getStringCellValue().trim());
                             }
-                        } else if ("N°CC".equalsIgnoreCase(cellValue.trim())) {
+                        } else if ("N°CC".equalsIgnoreCase(cellValue.trim()) || "NCC".equalsIgnoreCase(cellValue.trim())) {
                             // Le numéro CC est dans la cellule suivante
                             Cell ccCell = row.getCell(cell.getColumnIndex() + 2);
                             if (ccCell != null && !ccCell.getStringCellValue().trim().isEmpty()) {
                                 client.setNumeroCC(ccCell.getStringCellValue().trim());
                             }
                             // On sort après avoir trouvé le numéro CC
-                            facture.setClientPayload(client);
                             return;
                         }
+                        facture.setClientPayload(client);
                     }
                 }
             }
