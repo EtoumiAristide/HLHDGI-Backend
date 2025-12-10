@@ -20,6 +20,8 @@ import com.elpandor.hlh.modules.parametrage.organisations.dto.PointVenteDto;
 import com.elpandor.hlh.modules.parametrage.organisations.service.EtablissementService;
 import com.elpandor.hlh.modules.parametrage.organisations.service.PointVenteService;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.google.gson.Gson;
+import com.google.gson.JsonObject;
 import io.swagger.v3.core.util.Json;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -298,7 +300,7 @@ public class FactureApi {
                                                     @RequestParam(name = "paiement", defaultValue = "cash") String modePaiement,
                                                     @RequestParam(name = "pointvente", defaultValue = "pv") String pointVente,
                                                     @AuthenticationPrincipal Jwt jwt) {
-        log.trace("Starting processing get request for uploadExcelFile");
+        log.trace("Starting processing get request for save");
         try {
 
             //Recuperation du group
@@ -465,6 +467,77 @@ public class FactureApi {
             log.error("Exception occurred while processing file", e);
             return Utilities.createErrorResponse("Une erreur interne est survenue", List.of(), HttpStatus.INTERNAL_SERVER_ERROR);
         }
+    }
+
+    @PostMapping("/avoir")
+    @PreAuthorize("hasRole('Admin') or hasRole('Agent')")
+    public ResponseEntity<Map<String, Object>> saveAvoir(@RequestParam(name = "type", defaultValue = "FACTURE_AVOIR") String typeFacture,
+                                                         @RequestParam(name = "numeroFacture") String numeroFacture,
+                                                         @AuthenticationPrincipal Jwt jwt) {
+
+        log.trace("Starting processing get request for saveAvoir");
+        try {
+
+            //Recuperation du group
+            List<String> groups = jwt.getClaim("groups");
+            if (groups == null) groups = List.of();
+            if (groups.isEmpty())
+                return Utilities.createErrorResponse("Etablissement agent inconnue", List.of(), HttpStatus.BAD_REQUEST);
+
+            //Recuperation de l'établissement
+            EtablissementDto etablissement = etablissementService.findByNom(groups.get(0));
+
+            FactureDto factureSearch = factureService.findByNumFactureFNE(numeroFacture);
+            if (factureSearch == null)
+                return Utilities.createSuccessResponse(HttpStatus.NOT_FOUND, Optional.empty(), "Facture avec le numero " + numeroFacture + " non trouvé");
+
+            factureSearch.setTypeFacture(TypeFacture.FACTURE_AVOIR);
+
+            List<String> finalGroups = groups;
+
+//            for (FacturePayload facture : factures) {
+            //Appel de l'api DGI
+            TokenResponse tokenResponse = null;
+            ResponseEntity<String> response = null;
+            String request = factureSearch.getReponseFNE();
+
+            Gson gson = new Gson();
+            JsonObject facture = new JsonObject();
+            facture.addProperty("typeFacture", typeFacture);
+            facture.add("data", gson.fromJson(factureSearch.getReponseFNE(), JsonObject.class));
+
+            if (etablissement.getOrganisation().getRaisonSocial().equalsIgnoreCase(entrepriseHLH)) {
+                tokenResponse = hlhApimService.auth();
+                response = hlhApimService.sendData(tokenResponse.getAccessToken(), facture);
+            }
+            if (etablissement.getOrganisation().getRaisonSocial().equalsIgnoreCase(entrepriseBK)) {
+                tokenResponse = bkApimService.auth();
+                response = bkApimService.sendData(tokenResponse.getAccessToken(), facture);
+            }
+            if (etablissement.getOrganisation().getRaisonSocial().equalsIgnoreCase(entrepriseZino)) {
+                tokenResponse = zinoApimService.auth();
+                response = zinoApimService.sendData(tokenResponse.getAccessToken(), facture);
+            }
+
+            if (response.getStatusCode().is2xxSuccessful()) {
+                factureSearch.setDataSend(request);
+                factureSearch.setReponseFNE(response.getBody());
+                factureSearch.setId(null);
+
+                factureService.saveOrUpdate(factureSearch);
+            } else {
+                log.error("L'authentification de la facture à échoué");
+                return Utilities.createErrorResponse("L'authentification de la facture à échoué", response.getBody(), HttpStatus.INTERNAL_SERVER_ERROR);
+            }
+//            }
+            return Utilities.createSuccessResponse(HttpStatus.OK, factureSearch, "Fichier chargé avec succès");
+
+
+        } catch (Exception e) {
+            log.error("Exception occurred while processing file", e);
+            return Utilities.createErrorResponse("Une erreur interne est survenue", List.of(), HttpStatus.INTERNAL_SERVER_ERROR);
+        }
+
     }
 
     private List<FacturePayload> traitementFactureHLH(InputStream is, EtablissementDto etablissement) throws IOException {
