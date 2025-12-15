@@ -1,8 +1,7 @@
 package com.elpandor.hlh.modules.hlh.utils;
 
-import com.elpandor.hlh.modules.hlh.model.dto.payload.FacturePayload;
-import com.elpandor.hlh.modules.hlh.model.dto.payload.ZinoExtractedData;
-import com.elpandor.hlh.modules.hlh.model.dto.payload.ZinoExtractedDataOrdered;
+import com.elpandor.hlh.modules.hlh.model.dto.payload.zino.ZinoExtractedData;
+import com.elpandor.hlh.modules.hlh.model.dto.payload.zino.ZinoExtractedDataOrdered;
 import org.apache.poi.ss.usermodel.*;
 import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 

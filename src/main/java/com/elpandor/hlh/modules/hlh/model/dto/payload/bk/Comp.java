@@ -1,4 +1,4 @@
-package com.elpandor.hlh.modules.hlh.model.dto.payload;
+package com.elpandor.hlh.modules.hlh.model.dto.payload.bk;
 
 import lombok.Data;
 

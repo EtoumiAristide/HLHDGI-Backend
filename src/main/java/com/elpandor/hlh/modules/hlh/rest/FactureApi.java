@@ -1,20 +1,24 @@
 package com.elpandor.hlh.modules.hlh.rest;
 
 import com.elpandor.hlh.common.service.impl.FileStorageServiceImpl;
+import com.elpandor.hlh.common.utils.Utilities;
 import com.elpandor.hlh.modules.hlh.model.ModePaiement;
 import com.elpandor.hlh.modules.hlh.model.TypeClient;
-import com.elpandor.hlh.modules.hlh.model.dto.payload.*;
+import com.elpandor.hlh.modules.hlh.model.TypeFacture;
+import com.elpandor.hlh.modules.hlh.model.dto.FactureDto;
+import com.elpandor.hlh.modules.hlh.model.dto.payload.TokenResponse;
+import com.elpandor.hlh.modules.hlh.model.dto.payload.bk.BKExtractedData;
+import com.elpandor.hlh.modules.hlh.model.dto.payload.bk.Payment;
+import com.elpandor.hlh.modules.hlh.model.dto.payload.deloitte.DeloitteFactureDTO;
+import com.elpandor.hlh.modules.hlh.model.dto.payload.hlh.*;
+import com.elpandor.hlh.modules.hlh.model.dto.payload.zino.ZinoExtractedData;
+import com.elpandor.hlh.modules.hlh.model.dto.payload.zino.ZinoExtractedDataOrdered;
+import com.elpandor.hlh.modules.hlh.service.ApimService;
+import com.elpandor.hlh.modules.hlh.service.FactureService;
 import com.elpandor.hlh.modules.hlh.service.impl.BurgerKingApimServiceImpl;
 import com.elpandor.hlh.modules.hlh.service.impl.HLHApimServiceImpl;
 import com.elpandor.hlh.modules.hlh.service.impl.ZinoApimServiceImpl;
-import com.elpandor.hlh.modules.hlh.utils.BKExcelDataExtraction;
-import com.elpandor.hlh.modules.hlh.utils.HLHExcelFactureExtractor;
-import com.elpandor.hlh.common.utils.Utilities;
-import com.elpandor.hlh.modules.hlh.model.TypeFacture;
-import com.elpandor.hlh.modules.hlh.model.dto.FactureDto;
-import com.elpandor.hlh.modules.hlh.service.ApimService;
-import com.elpandor.hlh.modules.hlh.service.FactureService;
-import com.elpandor.hlh.modules.hlh.utils.ZinoExcelDataExtraction;
+import com.elpandor.hlh.modules.hlh.utils.*;
 import com.elpandor.hlh.modules.parametrage.organisations.dto.EtablissementDto;
 import com.elpandor.hlh.modules.parametrage.organisations.dto.PointVenteDto;
 import com.elpandor.hlh.modules.parametrage.organisations.service.EtablissementService;
@@ -71,7 +75,10 @@ public class FactureApi {
     @Value("${zino.api.entreprise}")
     private String entrepriseZino;
 
-    public FactureApi(FileStorageServiceImpl fileStorageService, FactureService factureService, HLHApimServiceImpl hlhApimService, BurgerKingApimServiceImpl burgerKingApimService, ZinoApimServiceImpl zinoApimService, EtablissementService etablissementService, PointVenteService pointVenteService) {
+    private final DeloittePDFExtractor2 deloittePDFExtractor2;
+    private final DeloittePDFExtractor3 deloittePDFExtractor3;
+
+    public FactureApi(FileStorageServiceImpl fileStorageService, FactureService factureService, HLHApimServiceImpl hlhApimService, BurgerKingApimServiceImpl burgerKingApimService, ZinoApimServiceImpl zinoApimService, EtablissementService etablissementService, PointVenteService pointVenteService, DeloittePDFExtractor2 deloittePDFExtractor2, DeloittePDFExtractor3 deloittePDFExtractor3) {
         this.fileStorageService = fileStorageService;
         this.factureService = factureService;
         this.hlhApimService = hlhApimService;
@@ -79,6 +86,8 @@ public class FactureApi {
         this.zinoApimService = zinoApimService;
         this.etablissementService = etablissementService;
         this.pointVenteService = pointVenteService;
+        this.deloittePDFExtractor2 = deloittePDFExtractor2;
+        this.deloittePDFExtractor3 = deloittePDFExtractor3;
     }
 
     @GetMapping(path = "/{id}")
@@ -161,12 +170,12 @@ public class FactureApi {
 
     @PostMapping("/upload")
     @PreAuthorize("hasRole('Admin') or hasRole('Agent')")
-    public ResponseEntity<Map<String, Object>> uploadExcelFile(@RequestParam("file") MultipartFile file,
-                                                               @RequestParam(name = "type", defaultValue = "FACTURE_VENTE") String typeFacture,
-                                                               @RequestParam(name = "client", defaultValue = "B2C") String typeClient,
-                                                               @RequestParam(name = "paiement", defaultValue = "cash") String modePaiement,
-                                                               @RequestParam(name = "pointvente", defaultValue = "pv") String pointVente,
-                                                               @AuthenticationPrincipal Jwt jwt) {
+    public ResponseEntity<Map<String, Object>> uploadFile(@RequestParam("file") MultipartFile file,
+                                                          @RequestParam(name = "type", defaultValue = "FACTURE_VENTE") String typeFacture,
+                                                          @RequestParam(name = "client", defaultValue = "B2C") String typeClient,
+                                                          @RequestParam(name = "paiement", defaultValue = "cash") String modePaiement,
+                                                          @RequestParam(name = "pointvente", defaultValue = "pv") String pointVente,
+                                                          @AuthenticationPrincipal Jwt jwt) {
         log.trace("Starting processing get request for uploadExcelFile");
         try {
 
@@ -194,7 +203,7 @@ public class FactureApi {
 
             // Validate file type by extension
             assert fileName != null;
-            if (!fileName.endsWith(".xlsx") && !fileName.endsWith(".xls") && !fileName.endsWith(".xlsm")) {
+            if (!fileName.endsWith(".xlsx") && !fileName.endsWith(".xls") && !fileName.endsWith(".xlsm") && !fileName.endsWith(".pdf")) {
                 log.error("Unsupported file type: {}", fileType);
                 return Utilities.createErrorResponse("Format de fichier non supporté!", List.of(), HttpStatus.UNSUPPORTED_MEDIA_TYPE);
             }
@@ -219,6 +228,9 @@ public class FactureApi {
                         break;
                     case "ZINO COTE D'IVOIRE":
                         factures = traitementFactureZino(file.getInputStream(), etablissement);
+                        break;
+                    case "DELOITTE COTE D'IVOIRE":
+                        traitementFactureDeloitte(file.getBytes(), etablissement);
                         break;
                     default:
                         System.out.println("Entreprise" + etablissement.getOrganisation().getRaisonSocial() + " non prise en charge");
@@ -800,10 +812,23 @@ public class FactureApi {
 
     }
 
-    //    @GetMapping("export")
-//    public ResponseEntity<Map<String, Object>> export(){
-//        log.trace("Starting  processing of delete request for id :" + id);
-//    }
+    private void traitementFactureDeloitte(byte[] is, EtablissementDto etablissement) throws IOException {
+        //DeloittePDFExtractor deloittePDFExtractor = new DeloittePDFExtractor();
+        //System.out.println(deloittePDFExtractor.extraireDonneesFacture(is));
+//        System.out.println(deloittePDFExtractor2.extraireDonneesFacture(is));
+        System.out.println("Facture " + deloittePDFExtractor3.extraireDonneesFacture(is));
+
+    }
+
+    @GetMapping("/test-ocr")
+    public ResponseEntity<String> testerOCR() {
+        boolean ok = deloittePDFExtractor2.testerOCR();
+        if (ok) {
+            return ResponseEntity.ok("OCR configuré avec succès");
+        } else {
+            return ResponseEntity.badRequest().body("OCR non configuré");
+        }
+    }
 
     @DeleteMapping(path = "/{id}")
     @PreAuthorize("hasRole('Admin') or hasRole('Agent')")

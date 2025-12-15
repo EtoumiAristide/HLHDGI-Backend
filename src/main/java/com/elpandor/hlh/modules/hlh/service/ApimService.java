@@ -1,6 +1,6 @@
 package com.elpandor.hlh.modules.hlh.service;
 
-import com.elpandor.hlh.modules.hlh.model.dto.payload.FacturePayload;
+import com.elpandor.hlh.modules.hlh.model.dto.payload.hlh.FacturePayload;
 import com.elpandor.hlh.modules.hlh.model.dto.payload.TokenResponse;
 import com.google.gson.JsonObject;
 import org.springframework.http.ResponseEntity;

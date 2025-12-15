@@ -1,9 +1,9 @@
 package com.elpandor.hlh.modules.hlh.utils;
 
-import com.elpandor.hlh.modules.hlh.model.dto.payload.BKExtractedData;
-import com.elpandor.hlh.modules.hlh.model.dto.payload.Comp;
-import com.elpandor.hlh.modules.hlh.model.dto.payload.Payment;
-import com.elpandor.hlh.modules.hlh.model.dto.payload.Promo;
+import com.elpandor.hlh.modules.hlh.model.dto.payload.bk.BKExtractedData;
+import com.elpandor.hlh.modules.hlh.model.dto.payload.bk.Comp;
+import com.elpandor.hlh.modules.hlh.model.dto.payload.bk.Payment;
+import com.elpandor.hlh.modules.hlh.model.dto.payload.bk.Promo;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.poi.ss.usermodel.*;
 import org.apache.poi.xssf.usermodel.XSSFWorkbook;
