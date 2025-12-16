@@ -23,6 +23,7 @@ public class FactureDto {
 
     private String dataSend;
     private String reponseFNE;
+    private String bkExtractedData;;
 
     private TypeFacture typeFacture;
     private TypeClient typeClient;

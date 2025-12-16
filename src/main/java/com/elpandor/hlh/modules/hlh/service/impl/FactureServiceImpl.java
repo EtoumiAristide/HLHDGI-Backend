@@ -42,4 +42,9 @@ public class FactureServiceImpl extends GenericServiceImpl<Facture, Integer, Fac
 //        System.out.println("entreprise "+entreprise);
         return factureRepository.findByPointVente_Etablissement_Organisation_RaisonSocialOrderByIdDesc(pageable, entreprise).map(this::transformEntityToDTO);
     }
+
+    @Override
+    public FactureDto findByNumFactureFNE(String numFactureFNE) {
+        return factureMapper.toDto(factureRepository.findByReponseFNEContainingIgnoreCase(numFactureFNE));
+    }
 }

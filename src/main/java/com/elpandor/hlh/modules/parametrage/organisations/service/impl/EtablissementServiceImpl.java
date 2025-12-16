@@ -43,6 +43,6 @@ public class EtablissementServiceImpl extends GenericServiceImpl<Etablissement, 
 
     @Override
     public EtablissementDto findByNom(String nom) {
-        return transformEntityToDTO(etablissementRepository.findByNom(nom));
+        return transformEntityToDTO(etablissementRepository.findByNomContainingIgnoreCase(nom));
     }
 }

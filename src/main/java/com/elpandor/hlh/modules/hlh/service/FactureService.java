@@ -10,4 +10,5 @@ import java.util.List;
 
 public interface FactureService extends GenericService<Facture, Integer, FactureDto> {
     public Page<FactureDto> findByEntreprise(Pageable pageable, String entreprise);
+    public FactureDto findByNumFactureFNE(String numFactureFNE);
 }

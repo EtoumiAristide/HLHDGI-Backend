@@ -44,6 +44,9 @@ public class Facture extends AuditModel {
     @Column(name = "reponse_fne", columnDefinition = "TEXT DEFAULT NULL")
     private String reponseFNE;
 
+    @Column(name = "bk_extracted_data", columnDefinition = "TEXT DEFAULT NULL")
+    private String bkExtractedData;
+
     private TypeFacture typeFacture;
     private TypeClient typeClient;
     private ModePaiement modePaiement;

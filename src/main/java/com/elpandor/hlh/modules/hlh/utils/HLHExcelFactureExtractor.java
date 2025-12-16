@@ -1,6 +1,6 @@
 package com.elpandor.hlh.modules.hlh.utils;
 
-import com.elpandor.hlh.modules.hlh.model.dto.payload.*;
+import com.elpandor.hlh.modules.hlh.model.dto.payload.hlh.*;
 import org.apache.poi.ss.usermodel.*;
 import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 
@@ -11,19 +11,13 @@ import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.List;
 
-public class ExcelFactureExtractor {
+public class HLHExcelFactureExtractor {
 
     public List<FacturePayload> extractFacture(InputStream is, Integer indexLectureFichier) throws IOException {
 
         List<FacturePayload> factures = new ArrayList<>();
 
         Workbook workbook = new XSSFWorkbook(is);
-
-        /*int indexLecture = switch (entreprise) {
-            case "HOTEL AND LUXURY HOUSING" -> 0;
-            case "SIA RESTAURATION RAPIDE COTE D'IVOIRE", "BK AEROPORT" -> 2;
-            default -> 0;
-        };*/
 
         for (int i = indexLectureFichier; i < workbook.getNumberOfSheets(); i++) {
             Sheet sheet = workbook.getSheetAt(i); // Première feuille
@@ -84,30 +78,30 @@ public class ExcelFactureExtractor {
             for (Cell cell : row) {
                 if (cell.getCellType() == CellType.STRING) {
                     String cellValue = cell.getStringCellValue();
-                    //System.out.println("cellValue "+cellValue);
+//                    System.out.println("cellValue " + cellValue);
                     if ("Information Client".equalsIgnoreCase(cellValue.trim())) {
                         foundClientSection = true;
                         continue;
                     }
 
                     if (foundClientSection) {
-                        if ("SOCIETE".equalsIgnoreCase(cellValue.trim()) || "CLIENT".equalsIgnoreCase(cellValue.trim())) {
+                        if ("SOCIETE".equalsIgnoreCase(cellValue.trim()) || "CLIENT".equalsIgnoreCase(cellValue.trim()) || "SOCIETE / CLIENT".equalsIgnoreCase(cellValue.trim())) {
                             // Le nom du client est dans la cellule suivante
                             Cell clientCell = row.getCell(cell.getColumnIndex() + 2);
                             if (clientCell != null && !clientCell.getStringCellValue().trim().isEmpty()) {
 //                                System.out.println("clientCell.getStringCellValue() "+clientCell.getStringCellValue());
                                 client.setNom(clientCell.getStringCellValue().trim());
                             }
-                        } else if ("N°CC".equalsIgnoreCase(cellValue.trim())) {
+                        } else if ("N°CC".equalsIgnoreCase(cellValue.trim()) || "NCC".equalsIgnoreCase(cellValue.trim())) {
                             // Le numéro CC est dans la cellule suivante
                             Cell ccCell = row.getCell(cell.getColumnIndex() + 2);
                             if (ccCell != null && !ccCell.getStringCellValue().trim().isEmpty()) {
                                 client.setNumeroCC(ccCell.getStringCellValue().trim());
                             }
                             // On sort après avoir trouvé le numéro CC
-                            facture.setClientPayload(client);
                             return;
                         }
+                        facture.setClientPayload(client);
                     }
                 }
             }

@@ -10,5 +10,5 @@ import java.util.List;
 @Repository
 public interface EtablissementRepository extends JpaRepository<Etablissement, Integer> {
     List<Etablissement> findByOrganisationId(Integer organisationId);
-    Etablissement findByNom(String nom);
+    Etablissement findByNomContainingIgnoreCase(String nom);
 }

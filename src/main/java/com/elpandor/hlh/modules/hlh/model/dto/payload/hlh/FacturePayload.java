@@ -1,9 +1,9 @@
-package com.elpandor.hlh.modules.hlh.model.dto.payload;
+package com.elpandor.hlh.modules.hlh.model.dto.payload.hlh;
 
 import com.elpandor.hlh.modules.hlh.model.ModePaiement;
 import com.elpandor.hlh.modules.hlh.model.TypeClient;
 import com.elpandor.hlh.modules.hlh.model.TypeFacture;
-import lombok.Data;
+import lombok.*;
 
 import java.util.List;
 

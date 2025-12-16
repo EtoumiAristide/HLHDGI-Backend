@@ -59,7 +59,9 @@ public class OrganisationApi {
 
         OrganisationDto organisationDto = organisationService.get(id);
         if (organisationDto != null) {
-            organisationDto.setLogo(Utilities.getFileUri(organisationDto.getLogo(), "organisations/logo"));
+            if (organisationDto.getLogo() != null) {
+                organisationDto.setLogo(Utilities.getFileUri(organisationDto.getLogo(), "organisations/logo"));
+            }
             return new ResponseEntity<>(organisationDto, HttpStatus.OK);
         }
 
@@ -74,7 +76,9 @@ public class OrganisationApi {
         List<OrganisationDto> organisations = organisationService.getAll();
         if (organisations != null && !organisations.isEmpty()) {
             organisations.forEach(organisationDto -> {
-                organisationDto.setLogo(Utilities.getFileUri(organisationDto.getLogo(), "organisations/logo"));
+                if (organisationDto.getLogo() != null) {
+                    organisationDto.setLogo(Utilities.getFileUri(organisationDto.getLogo(), "organisations/logo"));
+                }
             });
             return Utilities.createSuccessResponse(HttpStatus.OK, organisations, "Liste des entreprise");
         }
@@ -92,7 +96,9 @@ public class OrganisationApi {
         List<OrganisationDto> organisationDtos = pages.getContent();
         if (!organisationDtos.isEmpty()) {
             pages.getContent().forEach(organisationDto -> {
-                organisationDto.setLogo(Utilities.getFileUri(organisationDto.getLogo(), "organisations/logo"));
+                if (organisationDto.getLogo() != null) {
+                    organisationDto.setLogo(Utilities.getFileUri(organisationDto.getLogo(), "organisations/logo"));
+                }
             });
             return Utilities.createSuccessResponse(HttpStatus.OK, pages, "Liste des entreprises");
         }
@@ -108,7 +114,9 @@ public class OrganisationApi {
         CompteUtilisateurDto organisationUtilisateurDto = organisationService.getOrganisationByUtilisateur(UUID.fromString(userId));
 
         if (organisationUtilisateurDto != null) {
-            organisationUtilisateurDto.getOrganisation().setLogo(Utilities.getFileUri(organisationUtilisateurDto.getOrganisation().getLogo(), "organisations/logo"));
+            if (organisationUtilisateurDto.getOrganisation().getLogo() != null) {
+                organisationUtilisateurDto.getOrganisation().setLogo(Utilities.getFileUri(organisationUtilisateurDto.getOrganisation().getLogo(), "organisations/logo"));
+            }
             return Utilities.createSuccessResponse(HttpStatus.OK, organisationUtilisateurDto, "Liste des entreprise");
         }
 
@@ -124,8 +132,10 @@ public class OrganisationApi {
         try {
 
 //            System.out.println(organisationDto);
-            String fileName = fileStorageService.storeFile(image, organisationDto.getRaisonSocial().replaceAll("[^a-zA-Z0-9]", ""));
-
+            String fileName = null;
+            if (image != null) {
+                fileStorageService.storeFile(image, organisationDto.getRaisonSocial().replaceAll("[^a-zA-Z0-9]", ""));
+            }
 //            String fileUri = ServletUriComponentsBuilder.fromCurrentContextPath()
 //                    .path("api/v1/organisations/logo/")
 //                    .path(fileName)

@@ -18,23 +18,23 @@ import java.util.Collections;
 
 @Slf4j
 @Service
-public class BurgerKingApimServiceImpl implements ApimService {
+public class ZinoApimServiceImpl implements ApimService {
 
-    @Value("${bk.auth.user}")
+    @Value("${zino.auth.user}")
     private String username;
 
-    @Value("${bk.auth.password}")
+    @Value("${zino.auth.password}")
     private String password;
 
     @Value("${auth.api.url}")
     private String tokenUrl;
 
-    @Value("${bk.api.url}")
+    @Value("${zino.api.url}")
     private String apiUrl;
 
     private final RestTemplate restTemplate;
 
-    public BurgerKingApimServiceImpl(RestTemplate restTemplate) {
+    public ZinoApimServiceImpl(RestTemplate restTemplate) {
         this.restTemplate = restTemplate;
     }
 
