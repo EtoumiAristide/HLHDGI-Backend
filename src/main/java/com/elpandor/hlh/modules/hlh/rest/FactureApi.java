@@ -222,6 +222,7 @@ public class FactureApi {
                 switch (etablissement.getOrganisation().getRaisonSocial()) {
                     case "HOTEL AND LUXURY HOUSING":
                         factures = traitementFactureHLH(file.getInputStream(), etablissement);
+                        bkExtractedData = null;
                         break;
                     case "SIA RESTAURATION RAPIDE COTE D'IVOIRE":
                         factures = traitementFactureBK(file.getInputStream(), etablissement);
@@ -231,6 +232,7 @@ public class FactureApi {
                         break;
                     case "DELOITTE COTE D'IVOIRE":
                         traitementFactureDeloitte(file.getBytes(), etablissement);
+                        bkExtractedData = null;
                         break;
                     default:
                         System.out.println("Entreprise" + etablissement.getOrganisation().getRaisonSocial() + " non prise en charge");
