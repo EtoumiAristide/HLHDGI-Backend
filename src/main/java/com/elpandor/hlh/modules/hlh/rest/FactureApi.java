@@ -16,6 +16,7 @@ import com.elpandor.hlh.modules.hlh.model.dto.payload.zino.ZinoExtractedDataOrde
 import com.elpandor.hlh.modules.hlh.service.ApimService;
 import com.elpandor.hlh.modules.hlh.service.FactureService;
 import com.elpandor.hlh.modules.hlh.service.impl.BurgerKingApimServiceImpl;
+import com.elpandor.hlh.modules.hlh.service.impl.CamApimServiceImpl;
 import com.elpandor.hlh.modules.hlh.service.impl.HLHApimServiceImpl;
 import com.elpandor.hlh.modules.hlh.service.impl.ZinoApimServiceImpl;
 import com.elpandor.hlh.modules.hlh.utils.*;
@@ -60,6 +61,7 @@ public class FactureApi {
     private final ApimService hlhApimService;
     private final ApimService bkApimService;
     private final ApimService zinoApimService;
+    private final ApimService camApimService;
     private final EtablissementService etablissementService;
     private final PointVenteService pointVenteService;
 
@@ -75,15 +77,19 @@ public class FactureApi {
     @Value("${zino.api.entreprise}")
     private String entrepriseZino;
 
+    @Value("${cam.api.entreprise}")
+    private String entrepriseCam;
+
     private final DeloittePDFExtractor2 deloittePDFExtractor2;
     private final DeloittePDFExtractor3 deloittePDFExtractor3;
 
-    public FactureApi(FileStorageServiceImpl fileStorageService, FactureService factureService, HLHApimServiceImpl hlhApimService, BurgerKingApimServiceImpl burgerKingApimService, ZinoApimServiceImpl zinoApimService, EtablissementService etablissementService, PointVenteService pointVenteService, DeloittePDFExtractor2 deloittePDFExtractor2, DeloittePDFExtractor3 deloittePDFExtractor3) {
+    public FactureApi(FileStorageServiceImpl fileStorageService, FactureService factureService, HLHApimServiceImpl hlhApimService, BurgerKingApimServiceImpl burgerKingApimService, ZinoApimServiceImpl zinoApimService, CamApimServiceImpl camApimService, EtablissementService etablissementService, PointVenteService pointVenteService, DeloittePDFExtractor2 deloittePDFExtractor2, DeloittePDFExtractor3 deloittePDFExtractor3) {
         this.fileStorageService = fileStorageService;
         this.factureService = factureService;
         this.hlhApimService = hlhApimService;
         this.bkApimService = burgerKingApimService;
         this.zinoApimService = zinoApimService;
+        this.camApimService = camApimService;
         this.etablissementService = etablissementService;
         this.pointVenteService = pointVenteService;
         this.deloittePDFExtractor2 = deloittePDFExtractor2;
@@ -220,7 +226,7 @@ public class FactureApi {
             if (etablissement.getOrganisation() != null) {
 
                 switch (etablissement.getOrganisation().getRaisonSocial()) {
-                    case "HOTEL AND LUXURY HOUSING":
+                    case "HOTEL AND LUXURY HOUSING", "CAM & SONS ENTREPRISES":
                         factures = traitementFactureHLH(file.getInputStream(), etablissement);
                         bkExtractedData = null;
                         break;
@@ -358,7 +364,7 @@ public class FactureApi {
             if (etablissement.getOrganisation() != null) {
 
                 switch (etablissement.getOrganisation().getRaisonSocial()) {
-                    case "HOTEL AND LUXURY HOUSING":
+                    case "HOTEL AND LUXURY HOUSING", "CAM & SONS ENTREPRISES":
                         factures = traitementFactureHLH(file.getInputStream(), etablissement);
                         break;
                     case "SIA RESTAURATION RAPIDE COTE D'IVOIRE":
@@ -439,8 +445,13 @@ public class FactureApi {
                     tokenResponse = zinoApimService.auth();
                     response = zinoApimService.sendData(tokenResponse.getAccessToken(), facture);
                 }
+
+                if (etablissement.getOrganisation().getRaisonSocial().equalsIgnoreCase(entrepriseCam)) {
+                    tokenResponse = camApimService.auth();
+                    response = camApimService.sendData(tokenResponse.getAccessToken(), facture);
+                }
                 PointVenteDto pointVenteDto = pointVenteService.findByNom(pointVente);
-                assert response != null;
+//                assert response != null;
 
                 //Gestion de la date de facture
                 LocalDate dateFacture = null;
@@ -451,7 +462,7 @@ public class FactureApi {
                     ex.printStackTrace();
                 }
 
-                if (response.getStatusCode().is2xxSuccessful()) {
+                if (response != null && response.getStatusCode().is2xxSuccessful()) {
                     FactureDto factureDto = FactureDto.builder()
                             .numFacture(facture.getNumeroFacture())
                             .dateFacture(dateFacture)
