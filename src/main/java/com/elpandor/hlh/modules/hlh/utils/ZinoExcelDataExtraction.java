@@ -20,17 +20,19 @@ public class ZinoExcelDataExtraction {
             for (int i = 1; i <= sheet.getLastRowNum(); i++) {
                 Row row = sheet.getRow(i);
                 if (row != null && row.getCell(0) != null) {
-                    ZinoExtractedData zinoExtractedData = new ZinoExtractedData();
+                    if (getCellStringValue(row.getCell(2)) != null && !getCellStringValue(row.getCell(2)).isEmpty()) {
+                        ZinoExtractedData zinoExtractedData = new ZinoExtractedData();
 
-                    // Lecture des cellules
-                    zinoExtractedData.setDate(row.getCell(0).getDateCellValue());
-                    zinoExtractedData.setCaisse(getCellStringValue(row.getCell(1)));
-                    zinoExtractedData.setModePaiement(getCellStringValue(row.getCell(2)));
-                    zinoExtractedData.setMontantHT(getCellNumericValue(row.getCell(3)));
-                    zinoExtractedData.setTva(getCellNumericValue(row.getCell(4)));
-                    zinoExtractedData.setMontantTTC(getCellNumericValue(row.getCell(5)));
+                        // Lecture des cellules
+                        zinoExtractedData.setDate(row.getCell(0).getDateCellValue());
+                        zinoExtractedData.setCaisse(getCellStringValue(row.getCell(1)));
+                        zinoExtractedData.setModePaiement(getCellStringValue(row.getCell(2)));
+                        zinoExtractedData.setMontantHT(getCellNumericValue(row.getCell(3)));
+                        zinoExtractedData.setTva(getCellNumericValue(row.getCell(4)));
+                        zinoExtractedData.setMontantTTC(getCellNumericValue(row.getCell(5)));
 
-                    importedRecords.add(zinoExtractedData);
+                        importedRecords.add(zinoExtractedData);
+                    }
                 }
             }
         } catch (Exception e) {

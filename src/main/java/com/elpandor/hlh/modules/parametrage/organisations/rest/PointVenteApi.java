@@ -105,7 +105,8 @@ public class PointVenteApi {
             etablissementDto = etablissementService.findByNom(etablissement);
         }
 
-        List<PointVenteDto> pointVentes = etablissementDto != null ? pointVenteService.getAllByEtablissement(etablissementDto.getId()) : List.of();
+//        List<PointVenteDto> pointVentes = etablissementDto != null ? pointVenteService.getAllByEtablissement(etablissementDto.getId()) : List.of();
+        List<PointVenteDto> pointVentes = etablissementDto != null ? pointVenteService.getAllByOrganisation(etablissementDto.getOrganisation().getId()) : List.of();
         if (!pointVentes.isEmpty()) {
 //            return new ResponseEntity<>(pointVenteEntreprises, HttpStatus.OK);
             return Utilities.createSuccessResponse(HttpStatus.OK, pointVentes, "Liste des points de vente");
@@ -162,8 +163,8 @@ public class PointVenteApi {
                     etablissements.add(pointVenteDto.getEtablissement());
                 }
             });
-            System.out.println("Entreprise: " + organisationDto.getRaisonSocial());
-            System.out.println("etablissements size: " + etablissements.size());
+//            System.out.println("Entreprise: " + organisationDto.getRaisonSocial());
+//            System.out.println("etablissements size: " + etablissements.size());
 
             etablissements.forEach(etablissementDto -> {
                 PointVenteEtablissement pointVenteEtablissement = new PointVenteEtablissement();

@@ -16,6 +16,7 @@ import com.elpandor.hlh.modules.hlh.model.dto.payload.zino.ZinoExtractedDataOrde
 import com.elpandor.hlh.modules.hlh.service.ApimService;
 import com.elpandor.hlh.modules.hlh.service.FactureService;
 import com.elpandor.hlh.modules.hlh.service.impl.BurgerKingApimServiceImpl;
+import com.elpandor.hlh.modules.hlh.service.impl.CamApimServiceImpl;
 import com.elpandor.hlh.modules.hlh.service.impl.HLHApimServiceImpl;
 import com.elpandor.hlh.modules.hlh.service.impl.ZinoApimServiceImpl;
 import com.elpandor.hlh.modules.hlh.utils.*;
@@ -60,6 +61,7 @@ public class FactureApi {
     private final ApimService hlhApimService;
     private final ApimService bkApimService;
     private final ApimService zinoApimService;
+    private final ApimService camApimService;
     private final EtablissementService etablissementService;
     private final PointVenteService pointVenteService;
 
@@ -75,15 +77,19 @@ public class FactureApi {
     @Value("${zino.api.entreprise}")
     private String entrepriseZino;
 
+    @Value("${cam.api.entreprise}")
+    private String entrepriseCam;
+
     private final DeloittePDFExtractor2 deloittePDFExtractor2;
     private final DeloittePDFExtractor3 deloittePDFExtractor3;
 
-    public FactureApi(FileStorageServiceImpl fileStorageService, FactureService factureService, HLHApimServiceImpl hlhApimService, BurgerKingApimServiceImpl burgerKingApimService, ZinoApimServiceImpl zinoApimService, EtablissementService etablissementService, PointVenteService pointVenteService, DeloittePDFExtractor2 deloittePDFExtractor2, DeloittePDFExtractor3 deloittePDFExtractor3) {
+    public FactureApi(FileStorageServiceImpl fileStorageService, FactureService factureService, HLHApimServiceImpl hlhApimService, BurgerKingApimServiceImpl burgerKingApimService, ZinoApimServiceImpl zinoApimService, CamApimServiceImpl camApimService, EtablissementService etablissementService, PointVenteService pointVenteService, DeloittePDFExtractor2 deloittePDFExtractor2, DeloittePDFExtractor3 deloittePDFExtractor3) {
         this.fileStorageService = fileStorageService;
         this.factureService = factureService;
         this.hlhApimService = hlhApimService;
         this.bkApimService = burgerKingApimService;
         this.zinoApimService = zinoApimService;
+        this.camApimService = camApimService;
         this.etablissementService = etablissementService;
         this.pointVenteService = pointVenteService;
         this.deloittePDFExtractor2 = deloittePDFExtractor2;
@@ -219,9 +225,10 @@ public class FactureApi {
 
             if (etablissement.getOrganisation() != null) {
 
-                switch (etablissement.getOrganisation().getRaisonSocial()) {
-                    case "HOTEL AND LUXURY HOUSING":
+                switch (etablissement.getOrganisation().getRaisonSocial().toUpperCase()) {
+                    case "HOTEL AND LUXURY HOUSING", "CAM & SONS ENTREPRISES":
                         factures = traitementFactureHLH(file.getInputStream(), etablissement);
+                        bkExtractedData = null;
                         break;
                     case "SIA RESTAURATION RAPIDE COTE D'IVOIRE":
                         factures = traitementFactureBK(file.getInputStream(), etablissement);
@@ -231,6 +238,7 @@ public class FactureApi {
                         break;
                     case "DELOITTE COTE D'IVOIRE":
                         traitementFactureDeloitte(file.getBytes(), etablissement);
+                        bkExtractedData = null;
                         break;
                     default:
                         System.out.println("Entreprise" + etablissement.getOrganisation().getRaisonSocial() + " non prise en charge");
@@ -356,7 +364,7 @@ public class FactureApi {
             if (etablissement.getOrganisation() != null) {
 
                 switch (etablissement.getOrganisation().getRaisonSocial()) {
-                    case "HOTEL AND LUXURY HOUSING":
+                    case "HOTEL AND LUXURY HOUSING", "CAM & SONS ENTREPRISES":
                         factures = traitementFactureHLH(file.getInputStream(), etablissement);
                         break;
                     case "SIA RESTAURATION RAPIDE COTE D'IVOIRE":
@@ -437,8 +445,13 @@ public class FactureApi {
                     tokenResponse = zinoApimService.auth();
                     response = zinoApimService.sendData(tokenResponse.getAccessToken(), facture);
                 }
+
+                if (etablissement.getOrganisation().getRaisonSocial().equalsIgnoreCase(entrepriseCam)) {
+                    tokenResponse = camApimService.auth();
+                    response = camApimService.sendData(tokenResponse.getAccessToken(), facture);
+                }
                 PointVenteDto pointVenteDto = pointVenteService.findByNom(pointVente);
-                assert response != null;
+//                assert response != null;
 
                 //Gestion de la date de facture
                 LocalDate dateFacture = null;
@@ -449,7 +462,7 @@ public class FactureApi {
                     ex.printStackTrace();
                 }
 
-                if (response.getStatusCode().is2xxSuccessful()) {
+                if (response != null && response.getStatusCode().is2xxSuccessful()) {
                     FactureDto factureDto = FactureDto.builder()
                             .numFacture(facture.getNumeroFacture())
                             .dateFacture(dateFacture)
@@ -530,8 +543,12 @@ public class FactureApi {
                 tokenResponse = zinoApimService.auth();
                 response = zinoApimService.sendData(tokenResponse.getAccessToken(), facture);
             }
+            if (etablissement.getOrganisation().getRaisonSocial().equalsIgnoreCase(entrepriseCam)) {
+                tokenResponse = camApimService.auth();
+                response = camApimService.sendData(tokenResponse.getAccessToken(), facture);
+            }
 
-            if (response.getStatusCode().is2xxSuccessful()) {
+            if (response != null && response.getStatusCode().is2xxSuccessful()) {
                 factureSearch.setDataSend(request);
                 factureSearch.setReponseFNE(response.getBody());
                 factureSearch.setId(null);
@@ -539,7 +556,7 @@ public class FactureApi {
                 factureService.saveOrUpdate(factureSearch);
             } else {
                 log.error("L'authentification de la facture à échoué");
-                return Utilities.createErrorResponse("L'authentification de la facture à échoué", response.getBody(), HttpStatus.INTERNAL_SERVER_ERROR);
+                return Utilities.createErrorResponse("L'authentification de la facture à échoué", response, HttpStatus.INTERNAL_SERVER_ERROR);
             }
 //            }
             return Utilities.createSuccessResponse(HttpStatus.OK, factureSearch, "Fichier chargé avec succès");
@@ -762,7 +779,7 @@ public class FactureApi {
 
         //Trie pas mode de paiement
         List<ZinoExtractedDataOrdered> extractedDataOrdereds = zinoExcelDataExtraction.calculerRepartitionParModePaiement(extractedDatas);
-
+//        System.out.println("extractedDataOrdereds " + extractedDataOrdereds);
         //Constitution de la liste facture
         extractedDataOrdereds.forEach(zinoExtractedDataOrdered -> {
             FacturePayload facture = new FacturePayload();
@@ -773,7 +790,7 @@ public class FactureApi {
             ligneProduit.setPrixUnitaireHT(zinoExtractedDataOrdered.getTotalMontantHT());
             ligneProduit.setMontantHT(zinoExtractedDataOrdered.getTotalMontantHT());
             ligneProduit.setQuantite(zinoExtractedDataOrdered.getNombreTransactions());
-            ligneProduit.setDate(new SimpleDateFormat("dd/MM/yyyy").format(zinoExtractedDataOrdered.getDate()));
+            ligneProduit.setDate(zinoExtractedDataOrdered.getDate() != null ? new SimpleDateFormat("dd/MM/yyyy").format(zinoExtractedDataOrdered.getDate()) : null);
             ligneProduits.add(ligneProduit);
 
             ClientPayload client = new ClientPayload();
@@ -799,7 +816,7 @@ public class FactureApi {
             totauxPayload.setTtc(totauxPayload.getHt() + tva.getMontant());
             totauxPayload.setModePaiement(zinoExtractedDataOrdered.getModePaiement());
 
-            facture.setDateFacture(new SimpleDateFormat("dd/MM/yyyy").format(zinoExtractedDataOrdered.getDate()));
+            facture.setDateFacture(zinoExtractedDataOrdered.getDate() != null ? new SimpleDateFormat("dd/MM/yyyy").format(zinoExtractedDataOrdered.getDate()) : null);
             facture.setSheetName(zinoExtractedDataOrdered.getModePaiement());
             facture.setLignes(ligneProduits);
             facture.setClientPayload(client);
