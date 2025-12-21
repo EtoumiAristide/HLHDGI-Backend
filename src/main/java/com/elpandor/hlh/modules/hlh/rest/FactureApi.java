@@ -225,7 +225,7 @@ public class FactureApi {
 
             if (etablissement.getOrganisation() != null) {
 
-                switch (etablissement.getOrganisation().getRaisonSocial()) {
+                switch (etablissement.getOrganisation().getRaisonSocial().toUpperCase()) {
                     case "HOTEL AND LUXURY HOUSING", "CAM & SONS ENTREPRISES":
                         factures = traitementFactureHLH(file.getInputStream(), etablissement);
                         bkExtractedData = null;
@@ -543,8 +543,12 @@ public class FactureApi {
                 tokenResponse = zinoApimService.auth();
                 response = zinoApimService.sendData(tokenResponse.getAccessToken(), facture);
             }
+            if (etablissement.getOrganisation().getRaisonSocial().equalsIgnoreCase(entrepriseCam)) {
+                tokenResponse = camApimService.auth();
+                response = camApimService.sendData(tokenResponse.getAccessToken(), facture);
+            }
 
-            if (response.getStatusCode().is2xxSuccessful()) {
+            if (response != null && response.getStatusCode().is2xxSuccessful()) {
                 factureSearch.setDataSend(request);
                 factureSearch.setReponseFNE(response.getBody());
                 factureSearch.setId(null);
@@ -552,7 +556,7 @@ public class FactureApi {
                 factureService.saveOrUpdate(factureSearch);
             } else {
                 log.error("L'authentification de la facture à échoué");
-                return Utilities.createErrorResponse("L'authentification de la facture à échoué", response.getBody(), HttpStatus.INTERNAL_SERVER_ERROR);
+                return Utilities.createErrorResponse("L'authentification de la facture à échoué", response, HttpStatus.INTERNAL_SERVER_ERROR);
             }
 //            }
             return Utilities.createSuccessResponse(HttpStatus.OK, factureSearch, "Fichier chargé avec succès");
@@ -775,7 +779,7 @@ public class FactureApi {
 
         //Trie pas mode de paiement
         List<ZinoExtractedDataOrdered> extractedDataOrdereds = zinoExcelDataExtraction.calculerRepartitionParModePaiement(extractedDatas);
-
+//        System.out.println("extractedDataOrdereds " + extractedDataOrdereds);
         //Constitution de la liste facture
         extractedDataOrdereds.forEach(zinoExtractedDataOrdered -> {
             FacturePayload facture = new FacturePayload();
@@ -786,7 +790,7 @@ public class FactureApi {
             ligneProduit.setPrixUnitaireHT(zinoExtractedDataOrdered.getTotalMontantHT());
             ligneProduit.setMontantHT(zinoExtractedDataOrdered.getTotalMontantHT());
             ligneProduit.setQuantite(zinoExtractedDataOrdered.getNombreTransactions());
-            ligneProduit.setDate(new SimpleDateFormat("dd/MM/yyyy").format(zinoExtractedDataOrdered.getDate()));
+            ligneProduit.setDate(zinoExtractedDataOrdered.getDate() != null ? new SimpleDateFormat("dd/MM/yyyy").format(zinoExtractedDataOrdered.getDate()) : null);
             ligneProduits.add(ligneProduit);
 
             ClientPayload client = new ClientPayload();
@@ -812,7 +816,7 @@ public class FactureApi {
             totauxPayload.setTtc(totauxPayload.getHt() + tva.getMontant());
             totauxPayload.setModePaiement(zinoExtractedDataOrdered.getModePaiement());
 
-            facture.setDateFacture(new SimpleDateFormat("dd/MM/yyyy").format(zinoExtractedDataOrdered.getDate()));
+            facture.setDateFacture(zinoExtractedDataOrdered.getDate() != null ? new SimpleDateFormat("dd/MM/yyyy").format(zinoExtractedDataOrdered.getDate()) : null);
             facture.setSheetName(zinoExtractedDataOrdered.getModePaiement());
             facture.setLignes(ligneProduits);
             facture.setClientPayload(client);
