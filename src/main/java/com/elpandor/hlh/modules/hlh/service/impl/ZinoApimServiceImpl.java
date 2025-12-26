@@ -73,18 +73,21 @@ public class ZinoApimServiceImpl implements ApimService {
             return response;
 
         } catch (HttpClientErrorException e) {
+            e.printStackTrace();
             log.error("Erreur HTTP CLIENT {} - {}", e.getStatusCode(), e.getResponseBodyAsString());
             return ResponseEntity
                     .status(e.getStatusCode())
                     .body(e.getResponseBodyAsString());
 
         } catch (HttpServerErrorException e) {
+            e.printStackTrace();
             log.error("Erreur HTTP SERVEUR {} - {}", e.getStatusCode(), e.getResponseBodyAsString());
             return ResponseEntity
                     .status(e.getStatusCode())
                     .body(e.getResponseBodyAsString());
 
         } catch (Exception e) {
+            e.printStackTrace();
             log.error("Erreur inattendue lors de l’appel API : {}", e.getMessage(), e);
             return ResponseEntity
                     .status(HttpStatus.INTERNAL_SERVER_ERROR)

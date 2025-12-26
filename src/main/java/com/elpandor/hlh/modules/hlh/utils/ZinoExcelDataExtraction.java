@@ -20,7 +20,7 @@ public class ZinoExcelDataExtraction {
             for (int i = 1; i <= sheet.getLastRowNum(); i++) {
                 Row row = sheet.getRow(i);
                 if (row != null && row.getCell(0) != null) {
-                    if (getCellStringValue(row.getCell(2)) != null && !getCellStringValue(row.getCell(2)).isEmpty()) {
+                    if (row.getCell(2).getCellType() != CellType.FORMULA && getCellStringValue(row.getCell(2)) != null && !getCellStringValue(row.getCell(2)).isEmpty()) {
                         ZinoExtractedData zinoExtractedData = new ZinoExtractedData();
 
                         // Lecture des cellules
@@ -30,6 +30,7 @@ public class ZinoExcelDataExtraction {
                         zinoExtractedData.setMontantHT(getCellNumericValue(row.getCell(3)));
                         zinoExtractedData.setTva(getCellNumericValue(row.getCell(4)));
                         zinoExtractedData.setMontantTTC(getCellNumericValue(row.getCell(5)));
+                        zinoExtractedData.setSheetName(sheet.getSheetName());
 
                         importedRecords.add(zinoExtractedData);
                     }
@@ -52,6 +53,9 @@ public class ZinoExcelDataExtraction {
         Map<String, ZinoExtractedDataOrdered> repartitionMap = new HashMap<>();
 
         for (ZinoExtractedData transaction : transactions) {
+            if (transaction.getModePaiement() != null && transaction.getModePaiement().equalsIgnoreCase("glovo")) {
+                transaction.setModePaiement("Espèces Franc CFA");
+            }
             String modePaiement = transaction.getModePaiement();
 
             ZinoExtractedDataOrdered dto = repartitionMap.getOrDefault(modePaiement,
@@ -62,6 +66,7 @@ public class ZinoExcelDataExtraction {
             dto.setTotalMontantHT(dto.getTotalMontantHT() != null ? dto.getTotalMontantHT() + transaction.getMontantHT() : transaction.getMontantHT());
             dto.setTotalTVA(dto.getTotalTVA() != null ? dto.getTotalTVA() + transaction.getTva() : transaction.getTva());
             dto.setNombreTransactions(dto.getNombreTransactions() + 1);
+            dto.setSheetName(transaction.getSheetName());
 
             repartitionMap.put(modePaiement, dto);
         }

@@ -12,4 +12,5 @@ public class ZinoExtractedDataOrdered {
     private Double totalMontantHT;
     private Double totalTVA;
     private int nombreTransactions;
+    private String sheetName;
 }

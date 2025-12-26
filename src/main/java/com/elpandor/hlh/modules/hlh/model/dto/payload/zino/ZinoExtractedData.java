@@ -12,4 +12,5 @@ public class ZinoExtractedData {
     private Double montantHT;
     private Double tva;
     private Double montantTTC;
+    private String sheetName;
 }
