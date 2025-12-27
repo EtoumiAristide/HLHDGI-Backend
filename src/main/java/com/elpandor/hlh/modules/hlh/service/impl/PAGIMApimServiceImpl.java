@@ -1,7 +1,7 @@
 package com.elpandor.hlh.modules.hlh.service.impl;
 
-import com.elpandor.hlh.modules.hlh.model.dto.payload.hlh.FacturePayload;
 import com.elpandor.hlh.modules.hlh.model.dto.payload.TokenResponse;
+import com.elpandor.hlh.modules.hlh.model.dto.payload.hlh.FacturePayload;
 import com.elpandor.hlh.modules.hlh.service.ApimService;
 import com.google.gson.JsonObject;
 import lombok.extern.slf4j.Slf4j;
@@ -18,23 +18,23 @@ import java.util.Collections;
 
 @Slf4j
 @Service
-public class ZinoApimServiceImpl implements ApimService {
+public class PAGIMApimServiceImpl implements ApimService {
 
-    @Value("${zino.auth.user}")
+    @Value("${pagim.auth.user}")
     private String username;
 
-    @Value("${zino.auth.password}")
+    @Value("${pagim.auth.password}")
     private String password;
 
     @Value("${auth.api.url}")
     private String tokenUrl;
 
-    @Value("${zino.api.url}")
+    @Value("${pagim.api.url}")
     private String apiUrl;
 
     private final RestTemplate restTemplate;
 
-    public ZinoApimServiceImpl(RestTemplate restTemplate) {
+    public PAGIMApimServiceImpl(RestTemplate restTemplate) {
         this.restTemplate = restTemplate;
     }
 
@@ -42,17 +42,19 @@ public class ZinoApimServiceImpl implements ApimService {
     public TokenResponse auth() {
         HttpHeaders headers = new HttpHeaders();
         headers.setBasicAuth(username, password);
+
+        System.out.println(username);
+        System.out.println(password);
+
         headers.setAccept(Collections.singletonList(MediaType.APPLICATION_JSON));
 
         MultiValueMap<String, String> body = new LinkedMultiValueMap<>();
         body.add("grant_type", "client_credentials");
-        System.out.println("username: "+username);
-        System.out.println("password: "+password);
-        System.out.println("body "+body);
 
         HttpEntity<MultiValueMap<String, String>> request = new HttpEntity<>(body, headers);
 
         ResponseEntity<TokenResponse> response = restTemplate.exchange(tokenUrl, HttpMethod.POST, request, TokenResponse.class);
+
 
         return response.getBody();
     }
@@ -60,6 +62,8 @@ public class ZinoApimServiceImpl implements ApimService {
     @Override
     public ResponseEntity<String> sendData(String accessToken, FacturePayload facturePayload) {
         try {
+
+            System.out.println("data send "+facturePayload);
             HttpHeaders headers = new HttpHeaders();
             headers.setBearerAuth(accessToken);
             headers.setAccept(Collections.singletonList(MediaType.APPLICATION_JSON));
@@ -67,27 +71,26 @@ public class ZinoApimServiceImpl implements ApimService {
 
             HttpEntity<FacturePayload> request = new HttpEntity<>(facturePayload, headers);
 
+            System.out.println("Api Url : " + apiUrl);
+
             ResponseEntity<String> response = restTemplate.exchange(apiUrl, HttpMethod.POST, request, String.class);
 
             log.info("Réponse API : {}", response.getBody());
             return response;
 
         } catch (HttpClientErrorException e) {
-            e.printStackTrace();
             log.error("Erreur HTTP CLIENT {} - {}", e.getStatusCode(), e.getResponseBodyAsString());
             return ResponseEntity
                     .status(e.getStatusCode())
                     .body(e.getResponseBodyAsString());
 
         } catch (HttpServerErrorException e) {
-            e.printStackTrace();
             log.error("Erreur HTTP SERVEUR {} - {}", e.getStatusCode(), e.getResponseBodyAsString());
             return ResponseEntity
                     .status(e.getStatusCode())
                     .body(e.getResponseBodyAsString());
 
         } catch (Exception e) {
-            e.printStackTrace();
             log.error("Erreur inattendue lors de l’appel API : {}", e.getMessage(), e);
             return ResponseEntity
                     .status(HttpStatus.INTERNAL_SERVER_ERROR)
@@ -102,7 +105,7 @@ public class ZinoApimServiceImpl implements ApimService {
             headers.setBearerAuth(accessToken);
             headers.setAccept(Collections.singletonList(MediaType.APPLICATION_JSON));
             headers.setContentType(MediaType.APPLICATION_JSON);
-
+           System.out.println("facturePayload " + facturePayload);
             HttpEntity<String> request = new HttpEntity<>(facturePayload.toString(), headers);
 
             ResponseEntity<String> response = restTemplate.exchange(apiUrl, HttpMethod.POST, request, String.class);

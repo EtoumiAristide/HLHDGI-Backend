@@ -15,10 +15,7 @@ import com.elpandor.hlh.modules.hlh.model.dto.payload.zino.ZinoExtractedData;
 import com.elpandor.hlh.modules.hlh.model.dto.payload.zino.ZinoExtractedDataOrdered;
 import com.elpandor.hlh.modules.hlh.service.ApimService;
 import com.elpandor.hlh.modules.hlh.service.FactureService;
-import com.elpandor.hlh.modules.hlh.service.impl.BurgerKingApimServiceImpl;
-import com.elpandor.hlh.modules.hlh.service.impl.CamApimServiceImpl;
-import com.elpandor.hlh.modules.hlh.service.impl.HLHApimServiceImpl;
-import com.elpandor.hlh.modules.hlh.service.impl.ZinoApimServiceImpl;
+import com.elpandor.hlh.modules.hlh.service.impl.*;
 import com.elpandor.hlh.modules.hlh.utils.*;
 import com.elpandor.hlh.modules.parametrage.organisations.dto.EtablissementDto;
 import com.elpandor.hlh.modules.parametrage.organisations.dto.PointVenteDto;
@@ -62,6 +59,7 @@ public class FactureApi {
     private final ApimService bkApimService;
     private final ApimService zinoApimService;
     private final ApimService camApimService;
+    private final ApimService pagimApimService;
     private final EtablissementService etablissementService;
     private final PointVenteService pointVenteService;
 
@@ -80,16 +78,20 @@ public class FactureApi {
     @Value("${cam.api.entreprise}")
     private String entrepriseCam;
 
+    @Value("${pagim.api.entreprise}")
+    private String entreprisePagim;
+
     private final DeloittePDFExtractor2 deloittePDFExtractor2;
     private final DeloittePDFExtractor3 deloittePDFExtractor3;
 
-    public FactureApi(FileStorageServiceImpl fileStorageService, FactureService factureService, HLHApimServiceImpl hlhApimService, BurgerKingApimServiceImpl burgerKingApimService, ZinoApimServiceImpl zinoApimService, CamApimServiceImpl camApimService, EtablissementService etablissementService, PointVenteService pointVenteService, DeloittePDFExtractor2 deloittePDFExtractor2, DeloittePDFExtractor3 deloittePDFExtractor3) {
+    public FactureApi(FileStorageServiceImpl fileStorageService, FactureService factureService, HLHApimServiceImpl hlhApimService, BurgerKingApimServiceImpl burgerKingApimService, ZinoApimServiceImpl zinoApimService, CamApimServiceImpl camApimService, PAGIMApimServiceImpl pagimApimService, EtablissementService etablissementService, PointVenteService pointVenteService, DeloittePDFExtractor2 deloittePDFExtractor2, DeloittePDFExtractor3 deloittePDFExtractor3) {
         this.fileStorageService = fileStorageService;
         this.factureService = factureService;
         this.hlhApimService = hlhApimService;
         this.bkApimService = burgerKingApimService;
         this.zinoApimService = zinoApimService;
         this.camApimService = camApimService;
+        this.pagimApimService = pagimApimService;
         this.etablissementService = etablissementService;
         this.pointVenteService = pointVenteService;
         this.deloittePDFExtractor2 = deloittePDFExtractor2;
@@ -220,10 +222,11 @@ public class FactureApi {
             //ExcelParser.parseExcelFile(is);
 //            ExcelFactureExtractor extractor = new ExcelFactureExtractor();
 //            System.out.println("etablissement.getOrganisation() " + etablissement);
-            List<FacturePayload> factures = new ArrayList<>();
+//            List<FacturePayload> factures = new ArrayList<>();
+            List<FacturePayload> factures = traitementFacture(etablissement, file, typeFacture, typeClient, modePaiement, pointVente);
 //            BKExtractedData bkExtractedData = new BKExtractedData();
 
-            if (etablissement.getOrganisation() != null) {
+            /*if (etablissement.getOrganisation() != null) {
 
                 switch (etablissement.getOrganisation().getRaisonSocial().toUpperCase()) {
                     case "HOTEL AND LUXURY HOUSING", "CAM & SONS ENTREPRISES":
@@ -287,7 +290,7 @@ public class FactureApi {
                 }
                 facturePayload.setEntreprise(finalGroups.get(0));
                 facturePayload.setPointVente(pointVente);
-            });
+            });*/
             //facture.setTypeFacture(TypeFacture.valueOf(typeFacture));
 
             Map<String, Object> result = new HashMap<>();
@@ -358,12 +361,13 @@ public class FactureApi {
             //ExcelParser.parseExcelFile(is);
             //HLHExcelFactureExtractor extractor = new HLHExcelFactureExtractor();
 //            System.out.println("etablissement.getOrganisation() " + etablissement);
-            List<FacturePayload> factures = new ArrayList<>();
+//            List<FacturePayload> factures = new ArrayList<>();
+            List<FacturePayload> factures = traitementFacture(etablissement, file, typeFacture, typeClient, modePaiement, pointVente);
 //            BKExtractedData bkExtractedData = new BKExtractedData();
 
-            if (etablissement.getOrganisation() != null) {
+            /*if (etablissement.getOrganisation() != null) {
 
-                switch (etablissement.getOrganisation().getRaisonSocial()) {
+                switch (etablissement.getOrganisation().getRaisonSocial().toUpperCase()) {
                     case "HOTEL AND LUXURY HOUSING", "CAM & SONS ENTREPRISES":
                         factures = traitementFactureHLH(file.getInputStream(), etablissement);
                         break;
@@ -420,7 +424,7 @@ public class FactureApi {
                 }
                 facturePayload.setEntreprise(finalGroups.get(0));//En réalité il s'agit de l'établissement
                 facturePayload.setPointVente(pointVente);
-            });
+            });*/
             //facture.setTypeFacture(TypeFacture.valueOf(typeFacture));
 
 //            System.out.println(factures);
@@ -437,6 +441,14 @@ public class FactureApi {
                     tokenResponse = hlhApimService.auth();
                     response = hlhApimService.sendData(tokenResponse.getAccessToken(), facture);
                 }
+
+                if (etablissement.getOrganisation().getRaisonSocial().equalsIgnoreCase(entreprisePagim)) {
+                    tokenResponse = pagimApimService.auth();
+                    System.out.println("tokenResponse "+tokenResponse);
+                    response = pagimApimService.sendData(tokenResponse.getAccessToken(), facture);
+                }
+
+
                 if (etablissement.getOrganisation().getRaisonSocial().equalsIgnoreCase(entrepriseBK)) {
                     tokenResponse = bkApimService.auth();
                     response = bkApimService.sendData(tokenResponse.getAccessToken(), facture);
@@ -535,6 +547,12 @@ public class FactureApi {
                 tokenResponse = hlhApimService.auth();
                 response = hlhApimService.sendData(tokenResponse.getAccessToken(), facture);
             }
+
+            if (etablissement.getOrganisation().getRaisonSocial().equalsIgnoreCase(entreprisePagim)) {
+                tokenResponse = pagimApimService.auth();
+                response = pagimApimService.sendData(tokenResponse.getAccessToken(), facture);
+            }
+
             if (etablissement.getOrganisation().getRaisonSocial().equalsIgnoreCase(entrepriseBK)) {
                 tokenResponse = bkApimService.auth();
                 response = bkApimService.sendData(tokenResponse.getAccessToken(), facture);
@@ -567,6 +585,80 @@ public class FactureApi {
             return Utilities.createErrorResponse("Une erreur interne est survenue", List.of(), HttpStatus.INTERNAL_SERVER_ERROR);
         }
 
+    }
+
+    private List<FacturePayload> traitementFacture(EtablissementDto etablissement, MultipartFile file, String typeFacture, String typeClient, String modePaiement, String pointVente) throws IOException {
+        List<FacturePayload> factures = new ArrayList<>();
+
+        if (etablissement.getOrganisation() != null) {
+
+            switch (etablissement.getOrganisation().getRaisonSocial().toUpperCase()) {
+                case "HOTEL AND LUXURY HOUSING", "CAM & SONS ENTREPRISES", "PAGIM SERVICES SARL":
+                    factures = traitementFactureHLH(file.getInputStream(), etablissement);
+                    bkExtractedData = null;
+                    break;
+                case "SIA RESTAURATION RAPIDE COTE D'IVOIRE":
+                    factures = traitementFactureBK(file.getInputStream(), etablissement);
+                    break;
+                case "ZINO COTE D'IVOIRE":
+                    bkExtractedData = null;
+                    factures = traitementFactureZino(file.getInputStream(), etablissement);
+                    break;
+                case "DELOITTE COTE D'IVOIRE":
+                    traitementFactureDeloitte(file.getBytes(), etablissement);
+                    bkExtractedData = null;
+                    break;
+                default:
+                    System.out.println("Entreprise" + etablissement.getOrganisation().getRaisonSocial() + " non prise en charge");
+            }
+
+//                if (!etablissement.getOrganisation().getIsFactureInitiale()) {
+//                } else {
+//
+//                }
+            //System.out.println("factures " + factures);
+        }
+//        List<String> finalGroups = groups;
+        factures.forEach(facturePayload -> {
+            facturePayload.setTypeFacture(TypeFacture.valueOf(typeFacture));
+            facturePayload.setTypeClient(TypeClient.valueOf(typeClient));
+            if (etablissement.getOrganisation().getIsOrderedByPaiementMethod()) {
+                //facturePayload.setModePaiement(facturePayload.getSheetName().toLowerCase().contains("mobile money") ? ModePaiement.mobilemoney : (facturePayload.getSheetName().equalsIgnoreCase("cash") ? ModePaiement.cash : ModePaiement.card));
+
+                if (facturePayload.getSheetName().toLowerCase().contains("mobile money".toLowerCase())
+                        || facturePayload.getSheetName().toLowerCase().contains("Wave".toLowerCase())
+                        || facturePayload.getSheetName().toLowerCase().contains("Orange".toLowerCase())
+                        || facturePayload.getSheetName().toLowerCase().contains("MTN".toLowerCase())
+                        || facturePayload.getSheetName().toLowerCase().contains("MOOV".toLowerCase()))
+                    facturePayload.setModePaiement(ModePaiement.mobilemoney);
+
+                if (facturePayload.getSheetName().toLowerCase().contains("cash".toLowerCase())
+                        || facturePayload.getSheetName().toLowerCase().contains("Espèces".toLowerCase())
+                        || facturePayload.getSheetName().toLowerCase().contains("Glovo".toLowerCase()))
+                    facturePayload.setModePaiement(ModePaiement.cash);
+
+                if (facturePayload.getSheetName().toLowerCase().contains("CC".toLowerCase())
+                        || facturePayload.getSheetName().toLowerCase().contains("Carte Bancaire".toLowerCase()))
+                    facturePayload.setModePaiement(ModePaiement.card);
+
+                if (facturePayload.getSheetName().toLowerCase().contains("Chèque".toLowerCase()))
+                    facturePayload.setModePaiement(ModePaiement.check);
+
+
+                if (etablissement.getOrganisation().getIsPrixUnitaireDefined()) {
+                    //On ajoute le prix unitaire dans les données
+                    facturePayload.getLignes().forEach(ligneProduitPayload -> {
+                        ligneProduitPayload.setPrixUnitaireHT(ligneProduitPayload.getMontantHT() / ligneProduitPayload.getQuantite());
+                    });
+                }
+            } else {
+                facturePayload.setModePaiement(ModePaiement.valueOf(modePaiement));
+            }
+            facturePayload.setEntreprise(etablissement.getNom());
+            facturePayload.setPointVente(pointVente);
+        });
+
+        return factures;
     }
 
     private List<FacturePayload> traitementFactureHLH(InputStream is, EtablissementDto etablissement) throws IOException {
@@ -732,6 +824,7 @@ public class FactureApi {
         ligneProduitCC2.setMontantHT(totalCC2.get());
         ligneProduitCC2.setQuantite(nbCC2.get());
         ligneProduitsCC.add(ligneProduitCC);
+        ligneProduitsCC.add(ligneProduitCC2);
 
         ClientPayload clientCC = new ClientPayload();
         clientCC.setNom("CC");
@@ -794,7 +887,7 @@ public class FactureApi {
             ligneProduits.add(ligneProduit);
 
             ClientPayload client = new ClientPayload();
-            client.setNom(zinoExtractedDataOrdered.getModePaiement());
+            client.setNom(zinoExtractedDataOrdered.getModePaiement() + " - " + zinoExtractedDataOrdered.getSheetName().toLowerCase().replaceAll("fne", ""));
             client.setNumeroCC("");
 
             //Montant & taxes
@@ -817,7 +910,7 @@ public class FactureApi {
             totauxPayload.setModePaiement(zinoExtractedDataOrdered.getModePaiement());
 
             facture.setDateFacture(zinoExtractedDataOrdered.getDate() != null ? new SimpleDateFormat("dd/MM/yyyy").format(zinoExtractedDataOrdered.getDate()) : null);
-            facture.setSheetName(zinoExtractedDataOrdered.getModePaiement());
+            facture.setSheetName(zinoExtractedDataOrdered.getModePaiement()+ " - " + zinoExtractedDataOrdered.getSheetName().toLowerCase().replaceAll("fne", ""));
             facture.setLignes(ligneProduits);
             facture.setClientPayload(client);
             facture.setTotauxPayload(totauxPayload);
