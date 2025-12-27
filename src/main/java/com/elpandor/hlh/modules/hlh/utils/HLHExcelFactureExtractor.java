@@ -117,7 +117,7 @@ public class HLHExcelFactureExtractor {
         for (Row row : sheet) {
             for (Cell cell : row) {
                 if (cell.getCellType() == CellType.STRING &&
-                        "Produit / Service".equalsIgnoreCase(cell.getStringCellValue().trim())) {
+                        ("Produit / Service".equalsIgnoreCase(cell.getStringCellValue().trim()) || "Désignation".equalsIgnoreCase(cell.getStringCellValue().trim()))) {
                     foundProductHeader = true;
                     productStartRow = row.getRowNum() + 1; // Ligne suivante est le début des produits
                     break;
@@ -126,13 +126,15 @@ public class HLHExcelFactureExtractor {
             if (foundProductHeader) break;
         }
 
-//        System.out.println("foundProductHeader "+foundProductHeader);
+        System.out.println("foundProductHeader "+foundProductHeader);
 
         if (!foundProductHeader) {
 //            System.out.println();
             facture.setLignes(lignes);
             return;
         }
+
+        System.out.println(productStartRow);
         // Extraction des produits jusqu'à trouver une ligne vide ou la section des totaux
         for (int i = productStartRow; i <= sheet.getLastRowNum(); i++) {
             Row row = sheet.getRow(i);
@@ -150,8 +152,8 @@ public class HLHExcelFactureExtractor {
 
             // Vérifie si la ligne contient un produit
             Cell productCell = row.getCell(1); // Colonne B (Produit / Service)
-//            System.out.println("productCell "+productCell);
-            if (productCell.getCellType() == CellType.BLANK) {
+            System.out.println("productCell "+row.getLastCellNum());
+            if (productCell != null && productCell.getCellType() == CellType.BLANK) {
                 continue; // Ligne vide
             }
 
@@ -169,8 +171,10 @@ public class HLHExcelFactureExtractor {
             }
 
             // Produit (colonne B)
-            if (productCell.getCellType() == CellType.STRING) {
-                ligne.setProduit(productCell.getStringCellValue().trim());
+            if (productCell != null && productCell.getCellType() == CellType.STRING) {
+               // if (!productCell.getStringCellValue().trim().isEmpty()){
+                    ligne.setProduit(productCell.getStringCellValue().trim());
+                //}
             }
 
             // Quantité (colonne C)
@@ -221,7 +225,13 @@ public class HLHExcelFactureExtractor {
             lignes.add(ligne);
         }
 
-        facture.setLignes(lignes);
+        System.out.println("LIGNE PRODUIT");
+        System.out.println(lignes);
+
+        //retrait des lignes vides
+
+
+        facture.setLignes(lignes.stream().filter(ligneProduitPayload -> ligneProduitPayload.getProduit() != null && !ligneProduitPayload.getProduit().isEmpty()).toList());
     }
 
     private void extractTotaux(Sheet sheet, FacturePayload facture) {

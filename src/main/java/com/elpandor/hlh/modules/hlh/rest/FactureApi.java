@@ -9,16 +9,12 @@ import com.elpandor.hlh.modules.hlh.model.dto.FactureDto;
 import com.elpandor.hlh.modules.hlh.model.dto.payload.TokenResponse;
 import com.elpandor.hlh.modules.hlh.model.dto.payload.bk.BKExtractedData;
 import com.elpandor.hlh.modules.hlh.model.dto.payload.bk.Payment;
-import com.elpandor.hlh.modules.hlh.model.dto.payload.deloitte.DeloitteFactureDTO;
 import com.elpandor.hlh.modules.hlh.model.dto.payload.hlh.*;
 import com.elpandor.hlh.modules.hlh.model.dto.payload.zino.ZinoExtractedData;
 import com.elpandor.hlh.modules.hlh.model.dto.payload.zino.ZinoExtractedDataOrdered;
 import com.elpandor.hlh.modules.hlh.service.ApimService;
 import com.elpandor.hlh.modules.hlh.service.FactureService;
-import com.elpandor.hlh.modules.hlh.service.impl.BurgerKingApimServiceImpl;
-import com.elpandor.hlh.modules.hlh.service.impl.CamApimServiceImpl;
-import com.elpandor.hlh.modules.hlh.service.impl.HLHApimServiceImpl;
-import com.elpandor.hlh.modules.hlh.service.impl.ZinoApimServiceImpl;
+import com.elpandor.hlh.modules.hlh.service.impl.*;
 import com.elpandor.hlh.modules.hlh.utils.*;
 import com.elpandor.hlh.modules.parametrage.organisations.dto.EtablissementDto;
 import com.elpandor.hlh.modules.parametrage.organisations.dto.PointVenteDto;
@@ -62,6 +58,7 @@ public class FactureApi {
     private final ApimService bkApimService;
     private final ApimService zinoApimService;
     private final ApimService camApimService;
+    private final ApimService pagimApimService;
     private final EtablissementService etablissementService;
     private final PointVenteService pointVenteService;
 
@@ -80,16 +77,20 @@ public class FactureApi {
     @Value("${cam.api.entreprise}")
     private String entrepriseCam;
 
+    @Value("${pagim.api.entreprise}")
+    private String entreprisePagim;
+
     private final DeloittePDFExtractor2 deloittePDFExtractor2;
     private final DeloittePDFExtractor3 deloittePDFExtractor3;
 
-    public FactureApi(FileStorageServiceImpl fileStorageService, FactureService factureService, HLHApimServiceImpl hlhApimService, BurgerKingApimServiceImpl burgerKingApimService, ZinoApimServiceImpl zinoApimService, CamApimServiceImpl camApimService, EtablissementService etablissementService, PointVenteService pointVenteService, DeloittePDFExtractor2 deloittePDFExtractor2, DeloittePDFExtractor3 deloittePDFExtractor3) {
+    public FactureApi(FileStorageServiceImpl fileStorageService, FactureService factureService, HLHApimServiceImpl hlhApimService, BurgerKingApimServiceImpl burgerKingApimService, ZinoApimServiceImpl zinoApimService, CamApimServiceImpl camApimService, PAGIMApimServiceImpl pagimApimService, EtablissementService etablissementService, PointVenteService pointVenteService, DeloittePDFExtractor2 deloittePDFExtractor2, DeloittePDFExtractor3 deloittePDFExtractor3) {
         this.fileStorageService = fileStorageService;
         this.factureService = factureService;
         this.hlhApimService = hlhApimService;
         this.bkApimService = burgerKingApimService;
         this.zinoApimService = zinoApimService;
         this.camApimService = camApimService;
+        this.pagimApimService = pagimApimService;
         this.etablissementService = etablissementService;
         this.pointVenteService = pointVenteService;
         this.deloittePDFExtractor2 = deloittePDFExtractor2;
@@ -224,9 +225,10 @@ public class FactureApi {
 //            BKExtractedData bkExtractedData = new BKExtractedData();
 
             if (etablissement.getOrganisation() != null) {
+                System.out.println(etablissement.getOrganisation().getRaisonSocial());
 
                 switch (etablissement.getOrganisation().getRaisonSocial().toUpperCase()) {
-                    case "HOTEL AND LUXURY HOUSING", "CAM & SONS ENTREPRISES":
+                    case "HOTEL AND LUXURY HOUSING", "CAM & SONS ENTREPRISES", "PAGIM SERVICES SARL":
                         factures = traitementFactureHLH(file.getInputStream(), etablissement);
                         bkExtractedData = null;
                         break;
@@ -291,6 +293,9 @@ public class FactureApi {
             //facture.setTypeFacture(TypeFacture.valueOf(typeFacture));
 
             Map<String, Object> result = new HashMap<>();
+            System.out.println("==============START VOIR LES DATAS DE PAGIM==========");
+            System.out.println(factures);
+            System.out.println("==============END VOIR LES DATAS DE PAGIM==========");
             result.put("factures", factures);
             if (bkExtractedData != null && bkExtractedData.getPayments() != null) {
                 result.put("payments", bkExtractedData.getPayments().stream().filter(payment -> payment.getTotal() != null).toList());
@@ -299,6 +304,7 @@ public class FactureApi {
             /*if (extractedDatas != null && !extractedDatas.isEmpty()) {
                 result.put("payments", extractedDatas);
             }*/
+
 
 //            System.out.println(facture);
             return Utilities.createSuccessResponse(HttpStatus.OK, result, "Fichier chargé et traité avec succès");
@@ -364,7 +370,7 @@ public class FactureApi {
             if (etablissement.getOrganisation() != null) {
 
                 switch (etablissement.getOrganisation().getRaisonSocial()) {
-                    case "HOTEL AND LUXURY HOUSING", "CAM & SONS ENTREPRISES":
+                    case "HOTEL AND LUXURY HOUSING", "CAM & SONS ENTREPRISES", "PAGIM SERVICES SARL":
                         factures = traitementFactureHLH(file.getInputStream(), etablissement);
                         break;
                     case "SIA RESTAURATION RAPIDE COTE D'IVOIRE":
@@ -437,6 +443,14 @@ public class FactureApi {
                     tokenResponse = hlhApimService.auth();
                     response = hlhApimService.sendData(tokenResponse.getAccessToken(), facture);
                 }
+
+                if (etablissement.getOrganisation().getRaisonSocial().equalsIgnoreCase(entreprisePagim)) {
+                    tokenResponse = pagimApimService.auth();
+                    System.out.println("tokenResponse "+tokenResponse);
+                    response = pagimApimService.sendData(tokenResponse.getAccessToken(), facture);
+                }
+
+
                 if (etablissement.getOrganisation().getRaisonSocial().equalsIgnoreCase(entrepriseBK)) {
                     tokenResponse = bkApimService.auth();
                     response = bkApimService.sendData(tokenResponse.getAccessToken(), facture);
@@ -570,6 +584,7 @@ public class FactureApi {
     }
 
     private List<FacturePayload> traitementFactureHLH(InputStream is, EtablissementDto etablissement) throws IOException {
+        System.out.println("JE SUIS ICI TRAITEMENT FACTURE HLH");
         return new HLHExcelFactureExtractor().extractFacture(is, etablissement.getOrganisation().getIndexLectureFichier());
     }
 
@@ -583,6 +598,8 @@ public class FactureApi {
         List<LigneProduitPayload> ligneProduitsCash = new ArrayList<>();
         List<LigneProduitPayload> ligneProduitsCC = new ArrayList<>();
         List<LigneProduitPayload> ligneProduitsWave = new ArrayList<>();
+
+
 
         //CASH
         AtomicReference<Double> totalCash = new AtomicReference<>((double) 0);
@@ -765,6 +782,7 @@ public class FactureApi {
 //        factures.add(factureCash);
 //        factures.add(factureWave);
 //        factures.add(factureCC);
+
         return List.of(factureCash, factureWave, factureCC);
     }
 
