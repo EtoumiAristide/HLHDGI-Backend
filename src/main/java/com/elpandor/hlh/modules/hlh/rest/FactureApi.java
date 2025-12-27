@@ -549,6 +549,13 @@ public class FactureApi {
                 tokenResponse = hlhApimService.auth();
                 response = hlhApimService.sendData(tokenResponse.getAccessToken(), facture);
             }
+
+            if (etablissement.getOrganisation().getRaisonSocial().equalsIgnoreCase(entreprisePagim)) {
+                tokenResponse = pagimApimService.auth();
+                System.out.println("tokenResponse "+tokenResponse);
+                response = pagimApimService.sendData(tokenResponse.getAccessToken(), facture);
+            }
+
             if (etablissement.getOrganisation().getRaisonSocial().equalsIgnoreCase(entrepriseBK)) {
                 tokenResponse = bkApimService.auth();
                 response = bkApimService.sendData(tokenResponse.getAccessToken(), facture);
@@ -584,7 +591,7 @@ public class FactureApi {
     }
 
     private List<FacturePayload> traitementFactureHLH(InputStream is, EtablissementDto etablissement) throws IOException {
-        System.out.println("JE SUIS ICI TRAITEMENT FACTURE HLH");
+       // System.out.println("JE SUIS ICI TRAITEMENT FACTURE HLH");
         return new HLHExcelFactureExtractor().extractFacture(is, etablissement.getOrganisation().getIndexLectureFichier());
     }
 

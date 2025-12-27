@@ -105,7 +105,7 @@ public class PAGIMApimServiceImpl implements ApimService {
             headers.setBearerAuth(accessToken);
             headers.setAccept(Collections.singletonList(MediaType.APPLICATION_JSON));
             headers.setContentType(MediaType.APPLICATION_JSON);
-//            System.out.println("facturePayload " + facturePayload);
+           System.out.println("facturePayload " + facturePayload);
             HttpEntity<String> request = new HttpEntity<>(facturePayload.toString(), headers);
 
             ResponseEntity<String> response = restTemplate.exchange(apiUrl, HttpMethod.POST, request, String.class);
