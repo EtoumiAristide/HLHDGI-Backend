@@ -117,7 +117,7 @@ public class HLHExcelFactureExtractor {
         for (Row row : sheet) {
             for (Cell cell : row) {
                 if (cell.getCellType() == CellType.STRING &&
-                        "Produit / Service".equalsIgnoreCase(cell.getStringCellValue().trim())) {
+                        ("Produit / Service".equalsIgnoreCase(cell.getStringCellValue().trim()) || "Désignation".equalsIgnoreCase(cell.getStringCellValue().trim()))) {
                     foundProductHeader = true;
                     productStartRow = row.getRowNum() + 1; // Ligne suivante est le début des produits
                     break;
@@ -169,7 +169,7 @@ public class HLHExcelFactureExtractor {
             }
 
             // Produit (colonne B)
-            if (productCell.getCellType() == CellType.STRING) {
+            if (productCell != null && productCell.getCellType() == CellType.STRING) {
                 ligne.setProduit(productCell.getStringCellValue().trim());
             }
 
@@ -221,7 +221,7 @@ public class HLHExcelFactureExtractor {
             lignes.add(ligne);
         }
 
-        facture.setLignes(lignes);
+        facture.setLignes(lignes.stream().filter(ligneProduitPayload -> ligneProduitPayload.getProduit() != null && !ligneProduitPayload.getProduit().isEmpty()).toList());
     }
 
     private void extractTotaux(Sheet sheet, FacturePayload facture) {

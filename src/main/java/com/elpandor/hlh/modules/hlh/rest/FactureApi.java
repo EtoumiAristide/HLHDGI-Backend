@@ -15,10 +15,7 @@ import com.elpandor.hlh.modules.hlh.model.dto.payload.zino.ZinoExtractedData;
 import com.elpandor.hlh.modules.hlh.model.dto.payload.zino.ZinoExtractedDataOrdered;
 import com.elpandor.hlh.modules.hlh.service.ApimService;
 import com.elpandor.hlh.modules.hlh.service.FactureService;
-import com.elpandor.hlh.modules.hlh.service.impl.BurgerKingApimServiceImpl;
-import com.elpandor.hlh.modules.hlh.service.impl.CamApimServiceImpl;
-import com.elpandor.hlh.modules.hlh.service.impl.HLHApimServiceImpl;
-import com.elpandor.hlh.modules.hlh.service.impl.ZinoApimServiceImpl;
+import com.elpandor.hlh.modules.hlh.service.impl.*;
 import com.elpandor.hlh.modules.hlh.utils.*;
 import com.elpandor.hlh.modules.parametrage.organisations.dto.EtablissementDto;
 import com.elpandor.hlh.modules.parametrage.organisations.dto.PointVenteDto;
@@ -62,6 +59,7 @@ public class FactureApi {
     private final ApimService bkApimService;
     private final ApimService zinoApimService;
     private final ApimService camApimService;
+    private final ApimService pagimApimService;
     private final EtablissementService etablissementService;
     private final PointVenteService pointVenteService;
 
@@ -80,16 +78,20 @@ public class FactureApi {
     @Value("${cam.api.entreprise}")
     private String entrepriseCam;
 
+    @Value("${pagim.api.entreprise}")
+    private String entreprisePagim;
+
     private final DeloittePDFExtractor2 deloittePDFExtractor2;
     private final DeloittePDFExtractor3 deloittePDFExtractor3;
 
-    public FactureApi(FileStorageServiceImpl fileStorageService, FactureService factureService, HLHApimServiceImpl hlhApimService, BurgerKingApimServiceImpl burgerKingApimService, ZinoApimServiceImpl zinoApimService, CamApimServiceImpl camApimService, EtablissementService etablissementService, PointVenteService pointVenteService, DeloittePDFExtractor2 deloittePDFExtractor2, DeloittePDFExtractor3 deloittePDFExtractor3) {
+    public FactureApi(FileStorageServiceImpl fileStorageService, FactureService factureService, HLHApimServiceImpl hlhApimService, BurgerKingApimServiceImpl burgerKingApimService, ZinoApimServiceImpl zinoApimService, CamApimServiceImpl camApimService, PAGIMApimServiceImpl pagimApimService, EtablissementService etablissementService, PointVenteService pointVenteService, DeloittePDFExtractor2 deloittePDFExtractor2, DeloittePDFExtractor3 deloittePDFExtractor3) {
         this.fileStorageService = fileStorageService;
         this.factureService = factureService;
         this.hlhApimService = hlhApimService;
         this.bkApimService = burgerKingApimService;
         this.zinoApimService = zinoApimService;
         this.camApimService = camApimService;
+        this.pagimApimService = pagimApimService;
         this.etablissementService = etablissementService;
         this.pointVenteService = pointVenteService;
         this.deloittePDFExtractor2 = deloittePDFExtractor2;
@@ -439,6 +441,14 @@ public class FactureApi {
                     tokenResponse = hlhApimService.auth();
                     response = hlhApimService.sendData(tokenResponse.getAccessToken(), facture);
                 }
+
+                if (etablissement.getOrganisation().getRaisonSocial().equalsIgnoreCase(entreprisePagim)) {
+                    tokenResponse = pagimApimService.auth();
+                    System.out.println("tokenResponse "+tokenResponse);
+                    response = pagimApimService.sendData(tokenResponse.getAccessToken(), facture);
+                }
+
+
                 if (etablissement.getOrganisation().getRaisonSocial().equalsIgnoreCase(entrepriseBK)) {
                     tokenResponse = bkApimService.auth();
                     response = bkApimService.sendData(tokenResponse.getAccessToken(), facture);
@@ -537,6 +547,12 @@ public class FactureApi {
                 tokenResponse = hlhApimService.auth();
                 response = hlhApimService.sendData(tokenResponse.getAccessToken(), facture);
             }
+
+            if (etablissement.getOrganisation().getRaisonSocial().equalsIgnoreCase(entreprisePagim)) {
+                tokenResponse = pagimApimService.auth();
+                response = pagimApimService.sendData(tokenResponse.getAccessToken(), facture);
+            }
+
             if (etablissement.getOrganisation().getRaisonSocial().equalsIgnoreCase(entrepriseBK)) {
                 tokenResponse = bkApimService.auth();
                 response = bkApimService.sendData(tokenResponse.getAccessToken(), facture);
@@ -577,7 +593,7 @@ public class FactureApi {
         if (etablissement.getOrganisation() != null) {
 
             switch (etablissement.getOrganisation().getRaisonSocial().toUpperCase()) {
-                case "HOTEL AND LUXURY HOUSING", "CAM & SONS ENTREPRISES":
+                case "HOTEL AND LUXURY HOUSING", "CAM & SONS ENTREPRISES", "PAGIM SERVICES SARL":
                     factures = traitementFactureHLH(file.getInputStream(), etablissement);
                     bkExtractedData = null;
                     break;
