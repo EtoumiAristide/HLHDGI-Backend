@@ -200,6 +200,7 @@ public class FactureApi {
 
             //Recuperation de l'établissement
             EtablissementDto etablissement = etablissementService.findByNom(groups.get(0));
+            PointVenteDto pointVenteDto = pointVenteService.get(Integer.valueOf(pointVente));
 
             // Process the uploaded file
             if (file.isEmpty()) {
@@ -228,7 +229,7 @@ public class FactureApi {
 //            ExcelFactureExtractor extractor = new ExcelFactureExtractor();
 //            System.out.println("etablissement.getOrganisation() " + etablissement);
 //            List<FacturePayload> factures = new ArrayList<>();
-            List<FacturePayload> factures = traitementFacture(etablissement, file, typeFacture, typeClient, modePaiement, pointVente);
+            List<FacturePayload> factures = traitementFacture(etablissement, file, typeFacture, typeClient, modePaiement, pointVenteDto);
 //            BKExtractedData bkExtractedData = new BKExtractedData();
 
             /*if (etablissement.getOrganisation() != null) {
@@ -339,6 +340,7 @@ public class FactureApi {
 
             //Recuperation de l'établissement
             EtablissementDto etablissement = etablissementService.findByNom(groups.get(0));
+            PointVenteDto pointVenteDto = pointVenteService.findByNom(pointVente);
 
             // Process the uploaded file
             if (file.isEmpty()) {
@@ -367,7 +369,7 @@ public class FactureApi {
             //HLHExcelFactureExtractor extractor = new HLHExcelFactureExtractor();
 //            System.out.println("etablissement.getOrganisation() " + etablissement);
 //            List<FacturePayload> factures = new ArrayList<>();
-            List<FacturePayload> factures = traitementFacture(etablissement, file, typeFacture, typeClient, modePaiement, pointVente);
+            List<FacturePayload> factures = traitementFacture(etablissement, file, typeFacture, typeClient, modePaiement, pointVenteDto);
 //            BKExtractedData bkExtractedData = new BKExtractedData();
 
             /*if (etablissement.getOrganisation() != null) {
@@ -449,7 +451,7 @@ public class FactureApi {
 
                 if (etablissement.getOrganisation().getRaisonSocial().equalsIgnoreCase(entreprisePagim)) {
                     tokenResponse = pagimApimService.auth();
-                    System.out.println("tokenResponse "+tokenResponse);
+                    System.out.println("tokenResponse " + tokenResponse);
                     response = pagimApimService.sendData(tokenResponse.getAccessToken(), facture);
                 }
 
@@ -467,7 +469,7 @@ public class FactureApi {
                     tokenResponse = camApimService.auth();
                     response = camApimService.sendData(tokenResponse.getAccessToken(), facture);
                 }
-                PointVenteDto pointVenteDto = pointVenteService.findByNom(pointVente);
+//                PointVenteDto pointVenteDto = pointVenteService.findByNom(pointVente);
 //                assert response != null;
 
                 //Gestion de la date de facture
@@ -592,7 +594,7 @@ public class FactureApi {
 
     }
 
-    private List<FacturePayload> traitementFacture(EtablissementDto etablissement, MultipartFile file, String typeFacture, String typeClient, String modePaiement, String pointVente) throws IOException {
+    private List<FacturePayload> traitementFacture(EtablissementDto etablissement, MultipartFile file, String typeFacture, String typeClient, String modePaiement, PointVenteDto pointVente) throws IOException {
         List<FacturePayload> factures = new ArrayList<>();
 
         if (etablissement.getOrganisation() != null) {
@@ -659,8 +661,9 @@ public class FactureApi {
             } else {
                 facturePayload.setModePaiement(ModePaiement.valueOf(modePaiement));
             }
-            facturePayload.setEntreprise(etablissement.getNom());
-            facturePayload.setPointVente(pointVente);
+//            facturePayload.setEntreprise(etablissement.getNom());
+            facturePayload.setEntreprise(pointVente.getEtablissement().getNom());
+            facturePayload.setPointVente(pointVente.getNom());
         });
 
         return factures;
@@ -709,8 +712,8 @@ public class FactureApi {
         ligneProduitCash2.setProduit("Ventes en espèce");
         ligneProduitCash2.setMontantHT(totalCash2.get());
         ligneProduitCash2.setQuantite(nbCash2.get());
-        ligneProduitsCash.add(ligneProduitCash);
-        ligneProduitsCash.add(ligneProduitCash2);
+        if (nbCash.get() != 0) ligneProduitsCash.add(ligneProduitCash);
+        if (nbCash2.get() != 0) ligneProduitsCash.add(ligneProduitCash2);
 
         ClientPayload clientCash = new ClientPayload();
         clientCash.setNom("CASH");
@@ -769,8 +772,8 @@ public class FactureApi {
         ligneProduitWave2.setProduit("Ventes via Wave");
         ligneProduitWave2.setMontantHT(totalWave2.get());
         ligneProduitWave2.setQuantite(nbWave2.get());
-        ligneProduitsWave.add(ligneProduitWave);
-        ligneProduitsWave.add(ligneProduitWave2);
+        if (nbWave.get() != 0) ligneProduitsWave.add(ligneProduitWave);
+        if (nbWave2.get() != 0) ligneProduitsWave.add(ligneProduitWave2);
 
         ClientPayload clientWave = new ClientPayload();
         clientWave.setNom("WAVE");
@@ -828,8 +831,8 @@ public class FactureApi {
         ligneProduitCC2.setProduit("Ventes via cartes bancaires");
         ligneProduitCC2.setMontantHT(totalCC2.get());
         ligneProduitCC2.setQuantite(nbCC2.get());
-        ligneProduitsCC.add(ligneProduitCC);
-        ligneProduitsCC.add(ligneProduitCC2);
+        if (nbCC.get() != 0) ligneProduitsCC.add(ligneProduitCC);
+        if (nbCC2.get() != 0) ligneProduitsCC.add(ligneProduitCC2);
 
         ClientPayload clientCC = new ClientPayload();
         clientCC.setNom("CC");
@@ -915,7 +918,7 @@ public class FactureApi {
             totauxPayload.setModePaiement(zinoExtractedDataOrdered.getModePaiement());
 
             facture.setDateFacture(zinoExtractedDataOrdered.getDate() != null ? new SimpleDateFormat("dd/MM/yyyy").format(zinoExtractedDataOrdered.getDate()) : null);
-            facture.setSheetName(zinoExtractedDataOrdered.getModePaiement()+ " - " + zinoExtractedDataOrdered.getSheetName().toLowerCase().replaceAll("fne", ""));
+            facture.setSheetName(zinoExtractedDataOrdered.getModePaiement() + " - " + zinoExtractedDataOrdered.getSheetName().toLowerCase().replaceAll("fne", ""));
             facture.setLignes(ligneProduits);
             facture.setClientPayload(client);
             facture.setTotauxPayload(totauxPayload);
