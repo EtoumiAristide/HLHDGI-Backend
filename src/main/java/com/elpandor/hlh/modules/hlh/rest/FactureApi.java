@@ -27,6 +27,7 @@ import com.google.gson.JsonObject;
 import io.swagger.v3.core.util.Json;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -81,10 +82,14 @@ public class FactureApi {
     @Value("${pagim.api.entreprise}")
     private String entreprisePagim;
 
-    private final DeloittePDFExtractor2 deloittePDFExtractor2;
-    private final DeloittePDFExtractor3 deloittePDFExtractor3;
+    @Autowired
+    private DeloittePDFExtractor2 deloittePDFExtractor2;
+    @Autowired
+    private DeloittePDFExtractor3 deloittePDFExtractor3;
+    @Autowired
+    private DeloittePDFExtractor4 deloittePDFExtractor4;
 
-    public FactureApi(FileStorageServiceImpl fileStorageService, FactureService factureService, HLHApimServiceImpl hlhApimService, BurgerKingApimServiceImpl burgerKingApimService, ZinoApimServiceImpl zinoApimService, CamApimServiceImpl camApimService, PAGIMApimServiceImpl pagimApimService, EtablissementService etablissementService, PointVenteService pointVenteService, DeloittePDFExtractor2 deloittePDFExtractor2, DeloittePDFExtractor3 deloittePDFExtractor3) {
+    public FactureApi(FileStorageServiceImpl fileStorageService, FactureService factureService, HLHApimServiceImpl hlhApimService, BurgerKingApimServiceImpl burgerKingApimService, ZinoApimServiceImpl zinoApimService, CamApimServiceImpl camApimService, PAGIMApimServiceImpl pagimApimService, EtablissementService etablissementService, PointVenteService pointVenteService) {
         this.fileStorageService = fileStorageService;
         this.factureService = factureService;
         this.hlhApimService = hlhApimService;
@@ -927,6 +932,7 @@ public class FactureApi {
         //System.out.println(deloittePDFExtractor.extraireDonneesFacture(is));
 //        System.out.println(deloittePDFExtractor2.extraireDonneesFacture(is));
         System.out.println("Facture " + deloittePDFExtractor3.extraireDonneesFacture(is));
+//        System.out.println("Facture " + deloittePDFExtractor4.extraireDonneesFacture(is));
 
     }
 
