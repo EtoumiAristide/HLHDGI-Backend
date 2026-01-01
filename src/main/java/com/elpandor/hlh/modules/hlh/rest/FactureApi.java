@@ -863,10 +863,15 @@ public class FactureApi {
         factureCC.setTotauxPayload(totauxPayloadCC);
 
         //Mise à jour de la facture générale
-//        factures.add(factureCash);
-//        factures.add(factureWave);
-//        factures.add(factureCC);
-        return List.of(factureCash, factureWave, factureCC);
+        List<FacturePayload> factures = new ArrayList<>();
+        if (!factureCash.getLignes().isEmpty())
+            factures.add(factureCash);
+        if (!factureWave.getLignes().isEmpty())
+            factures.add(factureWave);
+        if (!factureCC.getLignes().isEmpty())
+            factures.add(factureCC);
+//        return List.of(factureCash, factureWave, factureCC);
+        return factures;
     }
 
     private List<FacturePayload> traitementFactureZino(InputStream is, EtablissementDto etablissement) throws IOException {
