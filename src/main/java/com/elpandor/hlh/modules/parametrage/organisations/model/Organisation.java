@@ -52,5 +52,6 @@ public class Organisation extends AuditModel {
     private Boolean isPrixUnitaireDefined;
     private Boolean isFactureInitiale;
     private Boolean isTDTBaseTVA = Boolean.FALSE;
+    private Boolean isFacturationMultiple = Boolean.FALSE;
 
 }

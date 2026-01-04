@@ -5,6 +5,7 @@ import com.elpandor.hlh.common.utils.Utilities;
 import com.elpandor.hlh.modules.parametrage.compteutilisateur.model.dto.CompteUtilisateurDto;
 import com.elpandor.hlh.modules.parametrage.organisations.dto.OrganisationDto;
 import com.elpandor.hlh.modules.parametrage.organisations.service.OrganisationService;
+import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -157,14 +158,12 @@ public class OrganisationApi {
         return Utilities.createSuccessResponse(HttpStatus.CREATED, organisationDto, "Entreprise créé avec succès");
     }
 
-    @PutMapping(path = "/{id}")
+    @PostMapping(path = "/{id}", consumes = MediaType.MULTIPART_FORM_DATA_VALUE, produces = MediaType.APPLICATION_JSON_VALUE)
     @PreAuthorize("hasRole('Super-Admin')")
     public ResponseEntity<Map<String, Object>> update(@PathVariable Integer id, @RequestParam(required = false, value = "image") MultipartFile image, @ModelAttribute OrganisationDto organisationDto) {
-
         log.trace("Starting processing put for id :" + id);
         //Recherche de l'organisation dans la BD
         OrganisationDto organisationDtoSearch = organisationService.get(id);
-
         if (organisationDtoSearch != null) {
             log.trace("processing put request for id :" + id);
             organisationDto.setId(organisationDtoSearch.getId());
@@ -194,6 +193,7 @@ public class OrganisationApi {
 
                 organisationDto = organisationService.saveOrUpdate(organisationDto);
             } catch (Exception err) {
+                err.printStackTrace();
                 log.error("Error Occured while saving, Message : " + err.getMessage() + "; Cause :" + err.getCause());
                 return Utilities.createErrorResponse("Un erreur est survenue", List.of(), HttpStatus.INTERNAL_SERVER_ERROR);
 //                return new ResponseEntity<>(HttpStatus.INTERNAL_SERVER_ERROR);

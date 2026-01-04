@@ -19,10 +19,7 @@ import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.web.bind.annotation.*;
 
 import java.nio.file.Path;
-import java.util.ArrayList;
-import java.util.Comparator;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 
 @RestController
 @RequestMapping("api/v1/etablissement")
@@ -111,6 +108,28 @@ public class EtablissementApi {
         log.info("No element found while hitting getAll");
 //        return new ResponseEntity<>(HttpStatus.NO_CONTENT);
         return Utilities.createErrorResponse("Aucune donnée trouvé", List.of(), HttpStatus.NO_CONTENT);
+    }
+
+    @GetMapping("bykeycloakgroup")
+    public ResponseEntity<Map<String, Object>> getAllByKeycloakGroup(@AuthenticationPrincipal Jwt jwt) {
+        log.trace("Starting processing getAll request!");
+
+        //Recuperation du group
+        List<String> groups = jwt.getClaim("groups");
+        if (groups == null) groups = List.of();
+        if (groups.isEmpty())
+            return Utilities.createErrorResponse("Etablissement agent inconnue", List.of(), HttpStatus.BAD_REQUEST);
+
+        //Recuperation de l'établissement
+        EtablissementDto etablissement = etablissementService.findByNom(groups.get(0));
+
+        if (etablissement != null) {
+            return Utilities.createSuccessResponse(HttpStatus.OK, etablissement, "Etablissement inexistant ");
+        } else {
+            log.info("No element found while hitting getAll");
+//        return new ResponseEntity<>(HttpStatus.NO_CONTENT);
+            return Utilities.createErrorResponse("Aucune donnée trouvé", List.of(), HttpStatus.NO_CONTENT);
+        }
     }
 
     @GetMapping("sortbyEntreprise")

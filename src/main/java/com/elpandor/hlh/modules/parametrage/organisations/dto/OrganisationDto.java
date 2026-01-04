@@ -28,6 +28,7 @@ public class OrganisationDto {
     private Boolean isPrixUnitaireDefined;
     private Boolean isFactureInitiale;
     private Boolean isTDTBaseTVA;
+    private Boolean isFacturationMultiple;
 
 //    private MultipartFile image;
 }

@@ -188,6 +188,7 @@ public class FactureApi {
                                                           @RequestParam(name = "client", defaultValue = "B2C") String typeClient,
                                                           @RequestParam(name = "paiement", defaultValue = "cash") String modePaiement,
                                                           @RequestParam(name = "pointvente", defaultValue = "pv") String pointVente,
+                                                          @RequestParam(name = "facturation", defaultValue = "") String facturation,
                                                           @AuthenticationPrincipal Jwt jwt) {
         log.trace("Starting processing get request for uploadExcelFile");
         try {
@@ -229,7 +230,7 @@ public class FactureApi {
 //            ExcelFactureExtractor extractor = new ExcelFactureExtractor();
 //            System.out.println("etablissement.getOrganisation() " + etablissement);
 //            List<FacturePayload> factures = new ArrayList<>();
-            List<FacturePayload> factures = traitementFacture(etablissement, file, typeFacture, typeClient, modePaiement, pointVenteDto);
+            List<FacturePayload> factures = traitementFacture(etablissement, file, typeFacture, typeClient, modePaiement, pointVenteDto, facturation);
 //            BKExtractedData bkExtractedData = new BKExtractedData();
 
             /*if (etablissement.getOrganisation() != null) {
@@ -328,6 +329,7 @@ public class FactureApi {
                                                     @RequestParam(name = "client", defaultValue = "B2C") String typeClient,
                                                     @RequestParam(name = "paiement", defaultValue = "cash") String modePaiement,
                                                     @RequestParam(name = "pointvente", defaultValue = "pv") String pointVente,
+                                                    @RequestParam(name = "facturation", defaultValue = "") String facturation,
                                                     @AuthenticationPrincipal Jwt jwt) {
         log.trace("Starting processing get request for save");
         try {
@@ -369,7 +371,7 @@ public class FactureApi {
             //HLHExcelFactureExtractor extractor = new HLHExcelFactureExtractor();
 //            System.out.println("etablissement.getOrganisation() " + etablissement);
 //            List<FacturePayload> factures = new ArrayList<>();
-            List<FacturePayload> factures = traitementFacture(etablissement, file, typeFacture, typeClient, modePaiement, pointVenteDto);
+            List<FacturePayload> factures = traitementFacture(etablissement, file, typeFacture, typeClient, modePaiement, pointVenteDto, facturation);
 //            BKExtractedData bkExtractedData = new BKExtractedData();
 
             /*if (etablissement.getOrganisation() != null) {
@@ -533,7 +535,7 @@ public class FactureApi {
 
             FactureDto factureSearch = factureService.findByNumFactureFNE(numeroFacture);
             if (factureSearch == null)
-                return Utilities.createSuccessResponse(HttpStatus.NOT_FOUND, Optional.empty(), "Facture avec le numero " + numeroFacture + " non trouvé");
+                return Utilities.createErrorResponse("Facture avec le numero " + numeroFacture + " non trouvé", Optional.empty(), HttpStatus.NOT_FOUND);
 
             factureSearch.setTypeFacture(TypeFacture.FACTURE_AVOIR);
 
@@ -594,7 +596,7 @@ public class FactureApi {
 
     }
 
-    private List<FacturePayload> traitementFacture(EtablissementDto etablissement, MultipartFile file, String typeFacture, String typeClient, String modePaiement, PointVenteDto pointVente) throws IOException {
+    private List<FacturePayload> traitementFacture(EtablissementDto etablissement, MultipartFile file, String typeFacture, String typeClient, String modePaiement, PointVenteDto pointVente, String facturation) throws IOException {
         List<FacturePayload> factures = new ArrayList<>();
 
         if (etablissement.getOrganisation() != null) {
@@ -609,7 +611,7 @@ public class FactureApi {
                     break;
                 case "ZINO COTE D'IVOIRE":
                     bkExtractedData = null;
-                    factures = traitementFactureZino(file.getInputStream(), etablissement);
+                    factures = facturation != null && facturation.equalsIgnoreCase("FACTURE_DETAILLE") ? traitementFactureZino(file.getInputStream(), etablissement) : traitementFactureHLH(file.getInputStream(), etablissement);
                     break;
                 case "DELOITTE COTE D'IVOIRE":
                     traitementFactureDeloitte(file.getBytes(), etablissement);
