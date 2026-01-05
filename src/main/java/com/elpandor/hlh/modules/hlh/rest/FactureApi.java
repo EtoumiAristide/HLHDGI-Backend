@@ -189,6 +189,7 @@ public class FactureApi {
                                                           @RequestParam(name = "paiement", defaultValue = "cash") String modePaiement,
                                                           @RequestParam(name = "pointvente", defaultValue = "pv") String pointVente,
                                                           @RequestParam(name = "facturation", defaultValue = "") String facturation,
+                                                          @RequestParam(name = "messageCommercial", defaultValue = "") String messageCommercial,
                                                           @AuthenticationPrincipal Jwt jwt) {
         log.trace("Starting processing get request for uploadExcelFile");
         try {
@@ -330,6 +331,7 @@ public class FactureApi {
                                                     @RequestParam(name = "paiement", defaultValue = "cash") String modePaiement,
                                                     @RequestParam(name = "pointvente", defaultValue = "pv") String pointVente,
                                                     @RequestParam(name = "facturation", defaultValue = "") String facturation,
+                                                    @RequestParam(name = "messageCommercial", defaultValue = "") String messageCommercial,
                                                     @AuthenticationPrincipal Jwt jwt) {
         log.trace("Starting processing get request for save");
         try {
@@ -441,6 +443,7 @@ public class FactureApi {
             //String storeName = fileStorageService.storeFile(file, "Facture-" + new SimpleDateFormat("yyyyMMdddHHmmss").format(new Date()));
 
             for (FacturePayload facture : factures) {
+                facture.setReception(messageCommercial);
                 //Appel de l'api DGI
                 TokenResponse tokenResponse = null;
                 ResponseEntity<String> response = null;
