@@ -663,6 +663,10 @@ public class FactureApi {
                         ligneProduitPayload.setPrixUnitaireHT(ligneProduitPayload.getMontantHT() / ligneProduitPayload.getQuantite());
                     });
                 }
+
+                if(facturation!=null && facturation.equalsIgnoreCase("FACTURE_CONSOLIDE")){
+                    facturePayload.setModePaiement(ModePaiement.valueOf(modePaiement));
+                }
             } else {
                 facturePayload.setModePaiement(ModePaiement.valueOf(modePaiement));
             }
