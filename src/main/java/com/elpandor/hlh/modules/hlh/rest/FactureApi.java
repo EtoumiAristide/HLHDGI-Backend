@@ -664,7 +664,7 @@ public class FactureApi {
                     });
                 }
 
-                if(facturation!=null && facturation.equalsIgnoreCase("FACTURE_CONSOLIDE")){
+                if (facturation != null && facturation.equalsIgnoreCase("FACTURE_CONSOLIDE")) {
                     facturePayload.setModePaiement(ModePaiement.valueOf(modePaiement));
                 }
             } else {
@@ -673,6 +673,8 @@ public class FactureApi {
 //            facturePayload.setEntreprise(etablissement.getNom());
             facturePayload.setEntreprise(pointVente.getEtablissement().getNom());
             facturePayload.setPointVente(pointVente.getNom());
+            if (facturePayload.getClientPayload().getNumeroCC() == null)
+                facturePayload.getClientPayload().setNumeroCC("");
         });
 
         return factures;
