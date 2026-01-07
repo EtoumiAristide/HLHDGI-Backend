@@ -614,7 +614,7 @@ public class FactureApi {
                     break;
                 case "ZINO COTE D'IVOIRE":
                     bkExtractedData = null;
-                    factures = facturation != null && facturation.equalsIgnoreCase("FACTURE_DETAILLE") ? traitementFactureZino(file.getInputStream(), etablissement) : traitementFactureHLH(file.getInputStream(), etablissement);
+                    factures = facturation != null && facturation.equalsIgnoreCase("FACTURE_CONSOLIDE") ? traitementFactureHLH(file.getInputStream(), etablissement) : traitementFactureZino(file.getInputStream(), etablissement) ;
                     break;
                 case "DELOITTE COTE D'IVOIRE":
                     traitementFactureDeloitte(file.getBytes(), etablissement);
@@ -673,7 +673,7 @@ public class FactureApi {
 //            facturePayload.setEntreprise(etablissement.getNom());
             facturePayload.setEntreprise(pointVente.getEtablissement().getNom());
             facturePayload.setPointVente(pointVente.getNom());
-            if (facturePayload.getClientPayload().getNumeroCC() == null)
+            if (facturePayload.getClientPayload() != null && facturePayload.getClientPayload().getNumeroCC() == null)
                 facturePayload.getClientPayload().setNumeroCC("");
         });
 
