@@ -6,6 +6,8 @@ import com.elpandor.hlh.modules.hlh.model.ModePaiement;
 import com.elpandor.hlh.modules.hlh.model.TypeClient;
 import com.elpandor.hlh.modules.hlh.model.TypeFacture;
 import com.elpandor.hlh.modules.hlh.model.dto.FactureDto;
+import com.elpandor.hlh.modules.hlh.model.dto.payload.AvoirRequest;
+import com.elpandor.hlh.modules.hlh.model.dto.payload.FactureAvoirPayload;
 import com.elpandor.hlh.modules.hlh.model.dto.payload.TokenResponse;
 import com.elpandor.hlh.modules.hlh.model.dto.payload.bk.BKExtractedData;
 import com.elpandor.hlh.modules.hlh.model.dto.payload.bk.Payment;
@@ -23,6 +25,7 @@ import com.elpandor.hlh.modules.parametrage.organisations.service.EtablissementS
 import com.elpandor.hlh.modules.parametrage.organisations.service.PointVenteService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.gson.Gson;
+import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
 import io.swagger.v3.core.util.Json;
 import org.slf4j.Logger;
@@ -520,8 +523,7 @@ public class FactureApi {
 
     @PostMapping("/avoir")
     @PreAuthorize("hasRole('Admin') or hasRole('Agent')")
-    public ResponseEntity<Map<String, Object>> saveAvoir(@RequestParam(name = "type", defaultValue = "FACTURE_AVOIR") String typeFacture,
-                                                         @RequestParam(name = "numeroFacture") String numeroFacture,
+    public ResponseEntity<Map<String, Object>> saveAvoir(@ModelAttribute AvoirRequest requestData,
                                                          @AuthenticationPrincipal Jwt jwt) {
 
         log.trace("Starting processing get request for saveAvoir");
@@ -536,9 +538,9 @@ public class FactureApi {
             //Recuperation de l'établissement
             EtablissementDto etablissement = etablissementService.findByNom(groups.get(0));
 
-            FactureDto factureSearch = factureService.findByNumFactureFNE(numeroFacture);
+            FactureDto factureSearch = factureService.findByNumFactureFNE(requestData.getNumeroFacture());
             if (factureSearch == null)
-                return Utilities.createErrorResponse("Facture avec le numero " + numeroFacture + " non trouvé", Optional.empty(), HttpStatus.NOT_FOUND);
+                return Utilities.createErrorResponse("Facture avec le numero " + requestData.getNumeroFacture() + " non trouvé", Optional.empty(), HttpStatus.NOT_FOUND);
 
             factureSearch.setTypeFacture(TypeFacture.FACTURE_AVOIR);
 
@@ -552,8 +554,11 @@ public class FactureApi {
 
             Gson gson = new Gson();
             JsonObject facture = new JsonObject();
-            facture.addProperty("typeFacture", typeFacture);
-            facture.add("data", gson.fromJson(factureSearch.getReponseFNE(), JsonObject.class));
+            JsonObject respondeFNE = gson.fromJson(factureSearch.getReponseFNE(), JsonObject.class);
+            facture.addProperty("typeFacture", requestData.getType());
+            requestData.setNumeroFacture(respondeFNE.get("invoice").getAsJsonObject().get("id").getAsString());
+//            facture.add("data", gson.fromJson(factureSearch.getReponseFNE(), JsonObject.class));
+            facture.addProperty("data", gson.toJson(requestData));
 
             if (etablissement.getOrganisation().getRaisonSocial().equalsIgnoreCase(entrepriseHLH)) {
                 tokenResponse = hlhApimService.auth();
