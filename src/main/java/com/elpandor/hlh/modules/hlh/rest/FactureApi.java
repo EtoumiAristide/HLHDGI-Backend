@@ -119,17 +119,66 @@ public class FactureApi {
         return Utilities.createSuccessResponse(HttpStatus.NOT_FOUND, Optional.empty(), "Facture avec l'id " + id + " non trouvé");
     }
 
-    @GetMapping(path = "/bynumfne/{numfacture}")
-    public ResponseEntity<Map<String, Object>> getByNumeFactureFNE(@PathVariable("numfacture") String numfacture) {
+    @PostMapping(path = "/bynumfne/{numfacture}")
+    public ResponseEntity<Map<String, Object>> getByNumeFactureFNE(@PathVariable String numfacture,
+                                                                   @RequestParam("file") MultipartFile file,
+                                                                   @AuthenticationPrincipal Jwt jwt) {
         log.trace("Starting processing get request for numfacture :" + numfacture);
 
-        FactureDto factureDto = factureService.findByNumFactureFNE(numfacture);
-        if (factureDto != null) {
-            return Utilities.createSuccessResponse(HttpStatus.OK, factureDto, "Facture trouvé");
-        }
+        try {
 
-        log.info("Entity having id not found, numfacture : " + numfacture);
-        return Utilities.createSuccessResponse(HttpStatus.NOT_FOUND, Optional.empty(), "Facture avec le numero " + numfacture + " non trouvé");
+            FactureDto factureDto = factureService.findByNumFactureFNE(numfacture);
+            if (factureDto == null) {
+                log.info("Entity having id not found, numfacture : " + numfacture);
+                return Utilities.createSuccessResponse(HttpStatus.OK, factureDto, "Facture trouvé");
+            }
+
+            //Recuperation du group
+            List<String> groups = jwt.getClaim("groups");
+            if (groups == null) groups = List.of();
+            if (groups.isEmpty())
+                return Utilities.createErrorResponse("Entreprise agent inconnue", List.of(), HttpStatus.BAD_REQUEST);
+
+            //Recuperation de l'établissement
+            EtablissementDto etablissement = etablissementService.findByNom(groups.get(0));
+            //PointVenteDto pointVenteDto = pointVenteService.get(Integer.valueOf(pointVente));
+
+            // Process the uploaded file
+            if (file.isEmpty()) {
+                log.error("Fichier inexistant!");
+                return Utilities.createErrorResponse("Aucun fichier chargé!", List.of(), HttpStatus.BAD_REQUEST);
+            }
+
+            // Log file details
+            String fileName = file.getOriginalFilename();
+            String fileType = file.getContentType();
+            long fileSize = file.getSize();
+
+            log.info("Received file: Name={}, Type={}, Size={}", fileName, fileType, fileSize);
+
+            // Validate file type by extension
+            assert fileName != null;
+            if (!fileName.endsWith(".xlsx") && !fileName.endsWith(".xls") && !fileName.endsWith(".xlsm") && !fileName.endsWith(".pdf")) {
+                log.error("Unsupported file type: {}", fileType);
+                return Utilities.createErrorResponse("Format de fichier non supporté!", List.of(), HttpStatus.UNSUPPORTED_MEDIA_TYPE);
+            }
+
+            List<FacturePayload> factures = traitementFacture(etablissement, file, null, null, null, null, null);
+
+            Map<String, Object> result = new HashMap<>();
+            result.put("factureVente", factureDto);
+            result.put("donneesExtraite", factures);
+
+            return Utilities.createSuccessResponse(HttpStatus.OK, result, "Fichier chargé et traité avec succès");
+
+            //return Utilities.createErrorResponse("Facture avec le numero " + numfacture + " non trouvé", Optional.empty(), HttpStatus.NOT_FOUND);
+        } catch (IOException e) {
+            log.error("IOException occurred while processing file", e);
+            return Utilities.createErrorResponse("Une erreur est survenue lors du traitement du fichier", List.of(), HttpStatus.INTERNAL_SERVER_ERROR);
+        } catch (Exception e) {
+            log.error("Exception occurred while processing file", e);
+            return Utilities.createErrorResponse("Une erreur interne est survenue", List.of(), HttpStatus.INTERNAL_SERVER_ERROR);
+        }
     }
 
     @GetMapping
@@ -619,7 +668,7 @@ public class FactureApi {
                     break;
                 case "ZINO COTE D'IVOIRE":
                     bkExtractedData = null;
-                    factures = facturation != null && facturation.equalsIgnoreCase("FACTURE_CONSOLIDE") ? traitementFactureHLH(file.getInputStream(), etablissement) : traitementFactureZino(file.getInputStream(), etablissement) ;
+                    factures = facturation != null && facturation.equalsIgnoreCase("FACTURE_CONSOLIDE") ? traitementFactureHLH(file.getInputStream(), etablissement) : traitementFactureZino(file.getInputStream(), etablissement);
                     break;
                 case "DELOITTE COTE D'IVOIRE":
                     traitementFactureDeloitte(file.getBytes(), etablissement);
@@ -637,8 +686,8 @@ public class FactureApi {
         }
 //        List<String> finalGroups = groups;
         factures.forEach(facturePayload -> {
-            facturePayload.setTypeFacture(TypeFacture.valueOf(typeFacture));
-            facturePayload.setTypeClient(TypeClient.valueOf(typeClient));
+            facturePayload.setTypeFacture(typeFacture != null ? TypeFacture.valueOf(typeFacture) : null);
+            facturePayload.setTypeClient(typeClient != null ? TypeClient.valueOf(typeClient) : null);
             if (etablissement.getOrganisation().getIsOrderedByPaiementMethod()) {
                 //facturePayload.setModePaiement(facturePayload.getSheetName().toLowerCase().contains("mobile money") ? ModePaiement.mobilemoney : (facturePayload.getSheetName().equalsIgnoreCase("cash") ? ModePaiement.cash : ModePaiement.card));
 
@@ -670,14 +719,16 @@ public class FactureApi {
                 }
 
                 if (facturation != null && facturation.equalsIgnoreCase("FACTURE_CONSOLIDE")) {
-                    facturePayload.setModePaiement(ModePaiement.valueOf(modePaiement));
+                    facturePayload.setModePaiement(modePaiement != null ? ModePaiement.valueOf(modePaiement) : null);
                 }
             } else {
-                facturePayload.setModePaiement(ModePaiement.valueOf(modePaiement));
+                facturePayload.setModePaiement(modePaiement != null ? ModePaiement.valueOf(modePaiement) : null);
             }
 //            facturePayload.setEntreprise(etablissement.getNom());
-            facturePayload.setEntreprise(pointVente.getEtablissement().getNom());
-            facturePayload.setPointVente(pointVente.getNom());
+            if (pointVente != null) {
+                facturePayload.setEntreprise(pointVente.getEtablissement().getNom());
+                facturePayload.setPointVente(pointVente.getNom());
+            }
             if (facturePayload.getClientPayload() != null && facturePayload.getClientPayload().getNumeroCC() == null)
                 facturePayload.getClientPayload().setNumeroCC("");
         });
