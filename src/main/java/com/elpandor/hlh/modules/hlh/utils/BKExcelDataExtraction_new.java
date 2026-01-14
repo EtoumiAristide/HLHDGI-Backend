@@ -15,21 +15,16 @@ import java.util.ArrayList;
 import java.util.List;
 
 @Slf4j
-public class BKExcelDataExtraction {
+public class BKExcelDataExtraction_new {
+
     public BKExtractedData extractDataFromExcel(InputStream file, Integer indexLectureFichier) throws IOException {
-
         BKExtractedData extractedData = new BKExtractedData();
-
         Workbook workbook = new XSSFWorkbook(file);
-//        Sheet sheet = workbook.getSheetAt(0); // Première feuille
         Sheet sheet = workbook.getSheetAt(indexLectureFichier);
-//        System.out.println(sheet.getSheetName());
         extractedData.setPayments(extractPayments(sheet));
         extractedData.setComps(extractComps(sheet));
         extractedData.setPromos(extractPromos(sheet));
-
         workbook.close();
-
         return extractedData;
     }
 
@@ -41,30 +36,29 @@ public class BKExcelDataExtraction {
         boolean inCashWaveSection = false;
 
         for (Row row : sheet) {
-            String firstCellValue = getCellStringValue(row.getCell(1));
-//            String firstCellValue = getCellStringValue(row.getCell(0));
+            String firstCellValue = getCellStringValue(row.getCell(0));
 
-            // Détection des sections
+            // Détection des sections (adapté pour le nouveau fichier où tout est sous "Cash" mais types inférés)
             if (firstCellValue != null) {
-                if (firstCellValue.contains("*********  Cash   *********")) {
+                if (firstCellValue.contains("********* Cash *********") || firstCellValue.contains("*********  Cash   *********")) {
                     inCashSection = true;
                     inBackupCCSection = false;
                     inHDGlovoSection = false;
                     inCashWaveSection = false;
                     continue;
-                } else if (firstCellValue.contains("*********  Backup CC   *********")) {
+                } else if (firstCellValue.contains("********* Backup CC *********")) {
                     inCashSection = false;
                     inBackupCCSection = true;
                     inHDGlovoSection = false;
                     inCashWaveSection = false;
                     continue;
-                } else if (firstCellValue.contains("*********  HD Glovo   *********")) {
+                } else if (firstCellValue.contains("********* HD Glovo *********")) {
                     inCashSection = false;
                     inBackupCCSection = false;
                     inHDGlovoSection = true;
                     inCashWaveSection = false;
                     continue;
-                } else if (firstCellValue.contains("*********  Cash Wave   *********")) {
+                } else if (firstCellValue.contains("********* Cash Wave *********")) {
                     inCashSection = false;
                     inBackupCCSection = false;
                     inHDGlovoSection = false;
@@ -74,44 +68,47 @@ public class BKExcelDataExtraction {
             }
 
             // Extraction des données de paiement
-            if ((inCashSection || inBackupCCSection || inHDGlovoSection || inCashWaveSection)
-                    && isPaymentDataRow(row)) {
+            if ((inCashSection || inBackupCCSection || inHDGlovoSection || inCashWaveSection) && isPaymentDataRow(row)) {
                 Payment payment = new Payment();
-                payment.setCheckNumber(getCellStringValue(row.getCell(1)));
-                payment.setCardNumber(getCellStringValue(row.getCell(2)));
-                payment.setExp(getCellStringValue(row.getCell(3)));
-                payment.setQty(getCellIntegerValue(row.getCell(4)));
-                payment.setAmount(getCellBigDecimalValue(row.getCell(5)));
-                //payment.setTip(getCellBigDecimalValue(row.getCell(7)));
-                payment.setTdt(getCellBigDecimalValue(row.getCell(6)));
-                payment.setTva(getCellBigDecimalValue(row.getCell(7)));
-                payment.setTotal(getCellBigDecimalValue(row.getCell(8)));
-                payment.setEmp(getCellStringValue(row.getCell(9)));
-//                payment.setCheckNumber(getCellStringValue(row.getCell(0)));
-//                payment.setCardNumber(getCellStringValue(row.getCell(1)));
-//                payment.setExp(getCellStringValue(row.getCell(2)));
-//                payment.setQty(getCellIntegerValue(row.getCell(3)));
-//                payment.setAmount(getCellBigDecimalValue(row.getCell(4)));
-//                payment.setTip(getCellBigDecimalValue(row.getCell(6)));
-//                payment.setTotal(getCellBigDecimalValue(row.getCell(7)));
-//                payment.setEmp(getCellStringValue(row.getCell(8)));
-//                System.out.println("payment " + payment);
-                // Détermination du type de paiement
-                if (inCashSection) {
-                    payment.setPaymentType(Payment.PaymentType.CASH);
-                } else if (inBackupCCSection) {
-                    payment.setPaymentType(Payment.PaymentType.BACKUP_CC);
-                } else if (inHDGlovoSection) {
-                    payment.setPaymentType(Payment.PaymentType.HD_GLOVO);
-                } else if (inCashWaveSection) {
-                    payment.setPaymentType(Payment.PaymentType.CASH_WAVE);
-                }
+                payment.setCheckNumber(getCellStringValue(row.getCell(0)));
+                payment.setCardNumber(getCellStringValue(row.getCell(1)));
+                payment.setExp(getCellStringValue(row.getCell(2)));
+                payment.setQty(getCellIntegerValue(row.getCell(3)));
+                payment.setAmount(getCellBigDecimalValue(row.getCell(4)));
+                payment.setTdt(getCellBigDecimalValue(row.getCell(5)));
+                payment.setTva(getCellBigDecimalValue(row.getCell(6)));
+                payment.setTotal(getCellBigDecimalValue(row.getCell(7)));
+                String empFirst = getCellStringValue(row.getCell(8));
+                String empLast = getCellStringValue(row.getCell(9));
+                payment.setEmp((empFirst != null ? empFirst : "") + " " + (empLast != null ? empLast : ""));
 
+                // Détermination du type de paiement basée sur le préfixe du check number (adaptation pour nouveau fichier)
+                String checkNumber = payment.getCheckNumber();
+                if (checkNumber != null) {
+                    if (checkNumber.startsWith("4")) {
+                        payment.setPaymentType(Payment.PaymentType.BACKUP_CC);
+                    } else if (checkNumber.startsWith("3")) {
+                        payment.setPaymentType(Payment.PaymentType.HD_GLOVO);
+                    } else if (checkNumber.startsWith("15")) {
+                        payment.setPaymentType(Payment.PaymentType.CASH_WAVE);
+                    } else {
+                        payment.setPaymentType(Payment.PaymentType.CASH);
+                    }
+                } else {
+                    // Fallback sur la section si pas de check number
+                    if (inCashSection) {
+                        payment.setPaymentType(Payment.PaymentType.CASH);
+                    } else if (inBackupCCSection) {
+                        payment.setPaymentType(Payment.PaymentType.BACKUP_CC);
+                    } else if (inHDGlovoSection) {
+                        payment.setPaymentType(Payment.PaymentType.HD_GLOVO);
+                    } else if (inCashWaveSection) {
+                        payment.setPaymentType(Payment.PaymentType.CASH_WAVE);
+                    }
+                }
                 payments.add(payment);
             }
         }
-
-        //paymentRepository.saveAll(payments);
         log.info("Extracted {} payments", payments.size());
         return payments;
     }
@@ -123,22 +120,21 @@ public class BKExcelDataExtraction {
         boolean inGuestTrackSection = false;
 
         for (Row row : sheet) {
-            String firstCellValue = getCellStringValue(row.getCell(1));
-//            String firstCellValue = getCellStringValue(row.getCell(0));
+            String firstCellValue = getCellStringValue(row.getCell(0));
 
             // Détection des sections Comps
             if (firstCellValue != null) {
-                if (firstCellValue.contains("*********  ABJ Staff Meals   *********")) {
+                if (firstCellValue.contains("********* ABJ Staff Meals *********")) {
                     inStaffMealsSection = true;
                     inManagerMealsSection = false;
                     inGuestTrackSection = false;
                     continue;
-                } else if (firstCellValue.contains("*********  ABJ MNGR Meals   *********")) {
+                } else if (firstCellValue.contains("********* ABJ MNGR Meals *********")) {
                     inStaffMealsSection = false;
                     inManagerMealsSection = true;
                     inGuestTrackSection = false;
                     continue;
-                } else if (firstCellValue.contains("*********  Guest Track   *********")) {
+                } else if (firstCellValue.contains("********* Guest Track *********")) {
                     inStaffMealsSection = false;
                     inManagerMealsSection = false;
                     inGuestTrackSection = true;
@@ -147,29 +143,17 @@ public class BKExcelDataExtraction {
             }
 
             // Extraction des données Comps
-            if ((inStaffMealsSection || inManagerMealsSection || inGuestTrackSection)
-                    && isCompDataRow(row)) {
-
+            if ((inStaffMealsSection || inManagerMealsSection || inGuestTrackSection) && isCompDataRow(row)) {
                 Comp comp = new Comp();
-                comp.setChkNumber(getCellStringValue(row.getCell(1)));
-                comp.setTime(getCellStringValue(row.getCell(2)));
-                comp.setNameItem(getCellStringValue(row.getCell(3)));
-                comp.setUnit(getCellStringValue(row.getCell(4)));
-                comp.setQty(getCellIntegerValue(row.getCell(5)));
-                comp.setAmount(getCellBigDecimalValue(row.getCell(6)));
-                comp.setPercentTot(getCellBigDecimalValue(row.getCell(7)));
-                comp.setEmp(getCellStringValue(row.getCell(8)));
-                comp.setMgr(getCellStringValue(row.getCell(9)));
-
-//                comp.setChkNumber(getCellStringValue(row.getCell(0)));
-//                comp.setTime(getCellStringValue(row.getCell(1)));
-//                comp.setNameItem(getCellStringValue(row.getCell(2)));
-//                comp.setUnit(getCellStringValue(row.getCell(3)));
-//                comp.setQty(getCellIntegerValue(row.getCell(4)));
-//                comp.setAmount(getCellBigDecimalValue(row.getCell(5)));
-//                comp.setPercentTot(getCellBigDecimalValue(row.getCell(6)));
-//                comp.setEmp(getCellStringValue(row.getCell(7)));
-//                comp.setMgr(getCellStringValue(row.getCell(8)));
+                comp.setChkNumber(getCellStringValue(row.getCell(0)));
+                comp.setTime(getCellStringValue(row.getCell(1)));
+                comp.setNameItem(getCellStringValue(row.getCell(2)));
+                comp.setUnit(getCellStringValue(row.getCell(3)));
+                comp.setQty(getCellIntegerValue(row.getCell(4)));
+                comp.setAmount(getCellBigDecimalValue(row.getCell(5)));
+                comp.setPercentTot(getCellBigDecimalValue(row.getCell(6)));
+                comp.setEmp(getCellStringValue(row.getCell(7)));
+                comp.setMgr(getCellStringValue(row.getCell(8)));
 
                 // Détermination du type de comp
                 if (inStaffMealsSection) {
@@ -179,32 +163,47 @@ public class BKExcelDataExtraction {
                 } else if (inGuestTrackSection) {
                     comp.setCompType(Comp.CompType.GUEST_TRACK);
                 }
-
                 comps.add(comp);
             }
         }
-
-        //compRepository.saveAll(comps);
         log.info("Extracted {} comps", comps.size());
-
         return comps;
     }
 
     private List<Promo> extractPromos(Sheet sheet) {
         List<Promo> promos = new ArrayList<>();
-        // Implémentation similaire pour les promotions...
-        // (Le code serait structuré de la même manière que pour les paiements et comps)
+        boolean inPromoSection = false;
 
-//        promoRepository.saveAll(promos);
+        for (Row row : sheet) {
+            String firstCellValue = getCellStringValue(row.getCell(0));
+
+            if (firstCellValue != null && firstCellValue.contains("********* SUMMARY *********")) {
+                inPromoSection = true;
+                continue;
+            }
+
+            if (inPromoSection && isPromoDataRow(row)) {
+                Promo promo = new Promo();
+                promo.setName(getCellStringValue(row.getCell(1)));
+                promo.setQty(getCellIntegerValue(row.getCell(4)));
+                promo.setAmount(getCellBigDecimalValue(row.getCell(5)));
+                promo.setPercentTot(getCellBigDecimalValue(row.getCell(6)));
+                promos.add(promo);
+            }
+
+            // Arrêt à la ligne totale
+            String name = getCellStringValue(row.getCell(1));
+            if (inPromoSection && name != null && name.contains("Total Promos")) {
+                break;
+            }
+        }
         log.info("Extracted {} promos", promos.size());
-
         return promos;
     }
 
     // Méthodes utilitaires
     private String getCellStringValue(Cell cell) {
         if (cell == null) return null;
-
         switch (cell.getCellType()) {
             case STRING:
                 return cell.getStringCellValue().trim();
@@ -225,7 +224,6 @@ public class BKExcelDataExtraction {
 
     private Integer getCellIntegerValue(Cell cell) {
         if (cell == null) return null;
-
         switch (cell.getCellType()) {
             case NUMERIC:
                 return (int) cell.getNumericCellValue();
@@ -242,7 +240,6 @@ public class BKExcelDataExtraction {
 
     private BigDecimal getCellBigDecimalValue(Cell cell) {
         if (cell == null) return null;
-
         switch (cell.getCellType()) {
             case NUMERIC:
                 return BigDecimal.valueOf(cell.getNumericCellValue());
@@ -254,11 +251,8 @@ public class BKExcelDataExtraction {
                     return null;
                 }
             case FORMULA:
-//                return cell.getCellFormula();
-                // On évalue la formule et on récupère le résultat
                 FormulaEvaluator evaluator = cell.getSheet().getWorkbook().getCreationHelper().createFormulaEvaluator();
                 CellValue value = evaluator.evaluate(cell);
-
                 return switch (value.getCellType()) {
                     case STRING -> new BigDecimal(value.getStringValue().trim());
                     case NUMERIC -> new BigDecimal(value.getNumberValue());
@@ -270,20 +264,20 @@ public class BKExcelDataExtraction {
     }
 
     private boolean isPaymentDataRow(Row row) {
-        // Vérifie si la ligne contient des données de paiement valides
-        String checkNumber = getCellStringValue(row.getCell(1));
-        BigDecimal amount = getCellBigDecimalValue(row.getCell(5));
-//        System.out.println("amount "+amount);
-        return checkNumber != null && !checkNumber.isEmpty() &&
-                !checkNumber.contains("---") && amount != null;
+        String checkNumber = getCellStringValue(row.getCell(0));
+        BigDecimal amount = getCellBigDecimalValue(row.getCell(4));
+        return checkNumber != null && !checkNumber.isEmpty() && !checkNumber.contains("---") && amount != null;
     }
 
     private boolean isCompDataRow(Row row) {
-        // Vérifie si la ligne contient des données comps valides
-        String chkNumber = getCellStringValue(row.getCell(1));
-        BigDecimal amount = getCellBigDecimalValue(row.getCell(6));
-//        String amount = getCellStringValue(row.getCell(6));
-        return chkNumber != null && !chkNumber.isEmpty() &&
-                !chkNumber.contains("---") && amount != null;
+        String chkNumber = getCellStringValue(row.getCell(0));
+        BigDecimal amount = getCellBigDecimalValue(row.getCell(5));
+        return chkNumber != null && !chkNumber.isEmpty() && !chkNumber.contains("---") && amount != null;
+    }
+
+    private boolean isPromoDataRow(Row row) {
+        String name = getCellStringValue(row.getCell(1));
+        BigDecimal amount = getCellBigDecimalValue(row.getCell(5));
+        return name != null && !name.isEmpty() && !name.contains("Promo Type") && !name.contains("-----") && amount != null;
     }
 }
