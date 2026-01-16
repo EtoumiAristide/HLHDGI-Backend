@@ -54,4 +54,8 @@ public class Organisation extends AuditModel {
     private Boolean isTDTBaseTVA = Boolean.FALSE;
     private Boolean isFacturationMultiple = Boolean.FALSE;
 
+    private Double valeurTVA;
+    private Double valeurTDT;
+    private Double valeurTCN;
+
 }

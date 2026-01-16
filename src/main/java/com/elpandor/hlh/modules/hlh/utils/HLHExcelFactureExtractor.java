@@ -228,6 +228,7 @@ public class HLHExcelFactureExtractor {
         TotauxPayload totaux = new TotauxPayload();
         TaxePayload tdt = new TaxePayload();
         TaxePayload tva = new TaxePayload();
+        TaxePayload tcn = new TaxePayload();
         boolean foundTotalSection = false;
 
         for (Row row : sheet) {
@@ -253,6 +254,17 @@ public class HLHExcelFactureExtractor {
                         Cell montantCell = row.getCell(4);
                         if (montantCell != null && (montantCell.getCellType() == CellType.NUMERIC || montantCell.getCellType() == CellType.FORMULA)) {
                             tdt.setMontant(Double.parseDouble(decimalFormat.format(montantCell.getNumericCellValue())));
+                        }
+                    } else if ("TCN".equalsIgnoreCase(cellValue)) {
+                        // Base TCN (colonne D)
+                        Cell baseCell = row.getCell(3);
+                        if (baseCell != null && (baseCell.getCellType() == CellType.NUMERIC || baseCell.getCellType() == CellType.FORMULA)) {
+                            tcn.setBase(Double.parseDouble(decimalFormat.format(baseCell.getNumericCellValue())));
+                        }
+                        // Montant TDT (colonne E)
+                        Cell montantCell = row.getCell(4);
+                        if (montantCell != null && (montantCell.getCellType() == CellType.NUMERIC || montantCell.getCellType() == CellType.FORMULA)) {
+                            tcn.setMontant(Double.parseDouble(decimalFormat.format(montantCell.getNumericCellValue())));
                         }
                     } else if (cellValue.startsWith("TVA")) {
                         // Taux TVA (extrait du libellé)
@@ -293,6 +305,10 @@ public class HLHExcelFactureExtractor {
         //Calcul du pourcentage de TVA
         tva.setTaux(Double.valueOf(new DecimalFormat("#0").format((tva.getMontant() * 100) / tva.getBase()).replace(',', '.')));
         totaux.setTva(tva);
+
+        //Calcul du montant TCN
+        tcn.setTaux(tcn.getMontant()/tcn.getBase());
+        totaux.setTcn(tcn);
 
         facture.setTotauxPayload(totaux);
     }

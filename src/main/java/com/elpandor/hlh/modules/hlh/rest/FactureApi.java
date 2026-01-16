@@ -731,13 +731,32 @@ public class FactureApi {
             }
             if (facturePayload.getClientPayload() != null && facturePayload.getClientPayload().getNumeroCC() == null)
                 facturePayload.getClientPayload().setNumeroCC("");
+
+            facturePayload.setPourcentageTVA(etablissement.getOrganisation().getValeurTVA());
+            facturePayload.setPourcentageTDT(etablissement.getOrganisation().getValeurTDT());
+            facturePayload.setValeurTCN(etablissement.getOrganisation().getValeurTCN());
         });
 
         return factures;
     }
 
     private List<FacturePayload> traitementFactureHLH(InputStream is, EtablissementDto etablissement) throws IOException {
-        return new HLHExcelFactureExtractor().extractFacture(is, etablissement.getOrganisation().getIndexLectureFichier());
+        List<FacturePayload> factures = new HLHExcelFactureExtractor().extractFacture(is, etablissement.getOrganisation().getIndexLectureFichier());
+
+        //Mies des valeurs de taux par défaut si non trouvé
+        /*factures.forEach(facture -> {
+            if (facture.getTotauxPayload().getTva().getMontant() != 0 && facture.getTotauxPayload().getTva().getTaux() < etablissement.getOrganisation().getValeurTVA()) {
+                facture.getTotauxPayload().getTva().setTaux(etablissement.getOrganisation().getValeurTVA());
+            }
+            if (facture.getTotauxPayload().getTdt().getMontant() != 0 && facture.getTotauxPayload().getTdt().getTaux() < etablissement.getOrganisation().getValeurTDT()) {
+                facture.getTotauxPayload().getTdt().setTaux(etablissement.getOrganisation().getValeurTDT());
+            }
+            if (facture.getTotauxPayload().getTcn().getMontant() != 0 && facture.getTotauxPayload().getTcn().getTaux() < etablissement.getOrganisation().getValeurTCN()) {
+                facture.getTotauxPayload().getTcn().setTaux(etablissement.getOrganisation().getValeurTCN());
+            }
+        });*/
+
+        return factures;
     }
 
     private List<FacturePayload> traitementFactureBK(InputStream is, EtablissementDto etablissement) throws IOException {

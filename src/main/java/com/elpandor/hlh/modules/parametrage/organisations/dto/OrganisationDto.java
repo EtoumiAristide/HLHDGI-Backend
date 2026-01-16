@@ -4,12 +4,10 @@ import jakarta.validation.constraints.Size;
 import lombok.*;
 import org.springframework.web.multipart.MultipartFile;
 
-@Getter
-@Setter
-@AllArgsConstructor
-@NoArgsConstructor
-@ToString
-public class OrganisationDto {
+import java.io.Serializable;
+
+@Data
+public class OrganisationDto implements Serializable {
     private Integer id;
 
     @Size(max = 50)
@@ -29,6 +27,10 @@ public class OrganisationDto {
     private Boolean isFactureInitiale;
     private Boolean isTDTBaseTVA;
     private Boolean isFacturationMultiple;
+
+    private Double valeurTVA;
+    private Double valeurTDT;
+    private Double valeurTCN;
 
 //    private MultipartFile image;
 }
