@@ -741,7 +741,8 @@ public class FactureApi {
     }
 
     private List<FacturePayload> traitementFactureBK(InputStream is, EtablissementDto etablissement) throws IOException {
-        bkExtractedData = new BKExcelDataExtraction().extractDataFromExcel(is, etablissement.getOrganisation().getIndexLectureFichier());
+        //bkExtractedData = new BKExcelDataExtraction().extractDataFromExcel(is, etablissement.getOrganisation().getIndexLectureFichier());
+        bkExtractedData = new BKExcelDataExtraction_new().extractDataFromExcel(is, etablissement.getOrganisation().getIndexLectureFichier());
 //                    System.out.println("bkExtractedData " + bkExtractedData);
         //Constitution de la facture
         FacturePayload factureCash = new FacturePayload();
