@@ -122,9 +122,10 @@ public class FactureApi {
 
     @PostMapping(path = "/bynumfne/{numfacture}")
     public ResponseEntity<Map<String, Object>> getByNumeFactureFNE(@PathVariable String numfacture,
-                                                                   @RequestParam("file") MultipartFile file,
+                                                                   @RequestParam(value = "file", required = false) MultipartFile file,
                                                                    @AuthenticationPrincipal Jwt jwt) {
         log.trace("Starting processing get request for numfacture :" + numfacture);
+        Map<String, Object> result = new HashMap<>();
 
         try {
 
@@ -133,6 +134,7 @@ public class FactureApi {
                 log.info("Entity having id not found, numfacture : " + numfacture);
                 return Utilities.createSuccessResponse(HttpStatus.OK, factureDto, "Facture trouvé");
             }
+            result.put("factureVente", factureDto);
 
             //Recuperation du group
             List<String> groups = jwt.getClaim("groups");
@@ -144,31 +146,32 @@ public class FactureApi {
             EtablissementDto etablissement = etablissementService.findByNom(groups.get(0));
             //PointVenteDto pointVenteDto = pointVenteService.get(Integer.valueOf(pointVente));
 
-            // Process the uploaded file
-            if (file.isEmpty()) {
-                log.error("Fichier inexistant!");
-                return Utilities.createErrorResponse("Aucun fichier chargé!", List.of(), HttpStatus.BAD_REQUEST);
+            if (file != null) {
+                // Process the uploaded file
+                if (file.isEmpty()) {
+                    log.error("Fichier inexistant!");
+                    return Utilities.createErrorResponse("Aucun fichier chargé!", List.of(), HttpStatus.BAD_REQUEST);
+                }
+
+                // Log file details
+                String fileName = file.getOriginalFilename();
+                String fileType = file.getContentType();
+                long fileSize = file.getSize();
+
+                log.info("Received file: Name={}, Type={}, Size={}", fileName, fileType, fileSize);
+
+                // Validate file type by extension
+                assert fileName != null;
+                if (!fileName.endsWith(".xlsx") && !fileName.endsWith(".xls") && !fileName.endsWith(".xlsm") && !fileName.endsWith(".pdf")) {
+                    log.error("Unsupported file type: {}", fileType);
+                    return Utilities.createErrorResponse("Format de fichier non supporté!", List.of(), HttpStatus.UNSUPPORTED_MEDIA_TYPE);
+                }
+
+                List<FacturePayload> factures = traitementFacture(etablissement, file, null, null, null, null, null);
+
+                result.put("donneesExtraite", factures);
             }
 
-            // Log file details
-            String fileName = file.getOriginalFilename();
-            String fileType = file.getContentType();
-            long fileSize = file.getSize();
-
-            log.info("Received file: Name={}, Type={}, Size={}", fileName, fileType, fileSize);
-
-            // Validate file type by extension
-            assert fileName != null;
-            if (!fileName.endsWith(".xlsx") && !fileName.endsWith(".xls") && !fileName.endsWith(".xlsm") && !fileName.endsWith(".pdf")) {
-                log.error("Unsupported file type: {}", fileType);
-                return Utilities.createErrorResponse("Format de fichier non supporté!", List.of(), HttpStatus.UNSUPPORTED_MEDIA_TYPE);
-            }
-
-            List<FacturePayload> factures = traitementFacture(etablissement, file, null, null, null, null, null);
-
-            Map<String, Object> result = new HashMap<>();
-            result.put("factureVente", factureDto);
-            result.put("donneesExtraite", factures);
 
             return Utilities.createSuccessResponse(HttpStatus.OK, result, "Fichier chargé et traité avec succès");
 
@@ -527,8 +530,11 @@ public class FactureApi {
             JsonObject respondeFNE = gson.fromJson(factureSearch.getReponseFNE(), JsonObject.class);
             facture.addProperty("typeFacture", requestData.getType());
             requestData.setNumeroFacture(respondeFNE.get("invoice").getAsJsonObject().get("id").getAsString());
-//            facture.add("data", gson.fromJson(factureSearch.getReponseFNE(), JsonObject.class));
-            facture.addProperty("data", gson.toJson(requestData));
+            if (etablissement.getOrganisation().getIsAvoirFirstVersion()) {
+                facture.add("data", gson.fromJson(factureSearch.getReponseFNE(), JsonObject.class));
+            } else {
+                facture.addProperty("data", gson.toJson(requestData));
+            }
 
             if (etablissement.getOrganisation().getRaisonSocial().equalsIgnoreCase(entrepriseHLH)) {
                 tokenResponse = hlhApimService.auth();

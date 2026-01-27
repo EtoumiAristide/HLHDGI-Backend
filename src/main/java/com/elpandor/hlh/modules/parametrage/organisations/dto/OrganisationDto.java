@@ -28,6 +28,8 @@ public class OrganisationDto implements Serializable {
     private Boolean isTDTBaseTVA;
     private Boolean isFacturationMultiple;
 
+    private Boolean isAvoirFirstVersion = Boolean.FALSE;
+
     private Double valeurTVA;
     private Double valeurTDT;
     private Double valeurTCN;
