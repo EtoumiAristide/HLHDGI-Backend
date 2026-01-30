@@ -6,6 +6,7 @@ import com.elpandor.hlh.modules.hlh.model.ModePaiement;
 import com.elpandor.hlh.modules.hlh.model.TypeClient;
 import com.elpandor.hlh.modules.hlh.model.TypeFacture;
 import com.elpandor.hlh.modules.hlh.model.dto.FactureDto;
+import com.elpandor.hlh.modules.hlh.model.dto.FactureLoadDto;
 import com.elpandor.hlh.modules.hlh.model.dto.payload.AvoirRequest;
 import com.elpandor.hlh.modules.hlh.model.dto.payload.FactureAvoirPayload;
 import com.elpandor.hlh.modules.hlh.model.dto.payload.TokenResponse;
@@ -17,6 +18,7 @@ import com.elpandor.hlh.modules.hlh.model.dto.payload.hlh.*;
 import com.elpandor.hlh.modules.hlh.model.dto.payload.zino.ZinoExtractedData;
 import com.elpandor.hlh.modules.hlh.model.dto.payload.zino.ZinoExtractedDataOrdered;
 import com.elpandor.hlh.modules.hlh.service.ApimService;
+import com.elpandor.hlh.modules.hlh.service.FactureLoadService;
 import com.elpandor.hlh.modules.hlh.service.FactureService;
 import com.elpandor.hlh.modules.hlh.service.impl.*;
 import com.elpandor.hlh.modules.hlh.utils.*;
@@ -60,6 +62,7 @@ public class FactureApi {
 
     private final FileStorageServiceImpl fileStorageService;
     private final FactureService factureService;
+    private final FactureLoadService factureLoadService;
     private final ApimService hlhApimService;
     private final ApimService bkApimService;
     private final ApimService zinoApimService;
@@ -93,9 +96,10 @@ public class FactureApi {
     @Autowired
     private DeloittePDFExtractor4 deloittePDFExtractor4;
 
-    public FactureApi(FileStorageServiceImpl fileStorageService, FactureService factureService, HLHApimServiceImpl hlhApimService, BurgerKingApimServiceImpl burgerKingApimService, ZinoApimServiceImpl zinoApimService, CamApimServiceImpl camApimService, PAGIMApimServiceImpl pagimApimService, EtablissementService etablissementService, PointVenteService pointVenteService) {
+    public FactureApi(FileStorageServiceImpl fileStorageService, FactureService factureService, FactureLoadService factureLoadService, HLHApimServiceImpl hlhApimService, BurgerKingApimServiceImpl burgerKingApimService, ZinoApimServiceImpl zinoApimService, CamApimServiceImpl camApimService, PAGIMApimServiceImpl pagimApimService, EtablissementService etablissementService, PointVenteService pointVenteService) {
         this.fileStorageService = fileStorageService;
         this.factureService = factureService;
+        this.factureLoadService = factureLoadService;
         this.hlhApimService = hlhApimService;
         this.bkApimService = burgerKingApimService;
         this.zinoApimService = zinoApimService;
@@ -342,82 +346,8 @@ public class FactureApi {
                 return Utilities.createErrorResponse("Format de fichier non supporté!", List.of(), HttpStatus.UNSUPPORTED_MEDIA_TYPE);
             }
 
-            //InputStream is = file.getInputStream();
-
-//            List<MyObject> objects = ExcelParser.parseExcelFile(is);
-            //ExcelParser.parseExcelFile(is);
-            //HLHExcelFactureExtractor extractor = new HLHExcelFactureExtractor();
-//            System.out.println("etablissement.getOrganisation() " + etablissement);
-//            List<FacturePayload> factures = new ArrayList<>();
             List<FacturePayload> factures = traitementFacture(etablissement, file, typeFacture, typeClient, modePaiement, pointVenteDto, facturation);
-//            BKExtractedData bkExtractedData = new BKExtractedData();
-
-            /*if (etablissement.getOrganisation() != null) {
-
-                switch (etablissement.getOrganisation().getRaisonSocial().toUpperCase()) {
-                    case "HOTEL AND LUXURY HOUSING", "CAM & SONS ENTREPRISES":
-                        factures = traitementFactureHLH(file.getInputStream(), etablissement);
-                        break;
-                    case "SIA RESTAURATION RAPIDE COTE D'IVOIRE":
-                        factures = traitementFactureBK(file.getInputStream(), etablissement);
-                        break;
-                    case "ZINO COTE D'IVOIRE":
-                        factures = traitementFactureZino(file.getInputStream(), etablissement);
-                        break;
-                    default:
-                        System.out.println("Entreprise" + etablissement.getOrganisation().getRaisonSocial() + " non prise en charge");
-                }
-
-//                if (!etablissement.getOrganisation().getIsFactureInitiale()) {
-//                } else {
 //
-//                }
-                //System.out.println("factures " + factures);
-            }
-            List<String> finalGroups = groups;
-            factures.forEach(facturePayload -> {
-                facturePayload.setTypeFacture(TypeFacture.valueOf(typeFacture));
-                facturePayload.setTypeClient(TypeClient.valueOf(typeClient));
-                if (etablissement.getOrganisation().getIsOrderedByPaiementMethod()) {
-                    //facturePayload.setModePaiement(facturePayload.getSheetName().toLowerCase().contains("mobile money") ? ModePaiement.mobilemoney : (facturePayload.getSheetName().equalsIgnoreCase("cash") ? ModePaiement.cash : ModePaiement.card));
-
-                    if (facturePayload.getSheetName().toLowerCase().contains("mobile money".toLowerCase())
-                            || facturePayload.getSheetName().toLowerCase().contains("Wave".toLowerCase())
-                            || facturePayload.getSheetName().toLowerCase().contains("Orange".toLowerCase())
-                            || facturePayload.getSheetName().toLowerCase().contains("MTN".toLowerCase())
-                            || facturePayload.getSheetName().toLowerCase().contains("MOOV".toLowerCase()))
-                        facturePayload.setModePaiement(ModePaiement.mobilemoney);
-
-                    if (facturePayload.getSheetName().toLowerCase().contains("cash".toLowerCase())
-                            || facturePayload.getSheetName().toLowerCase().contains("Espèces".toLowerCase()))
-                        facturePayload.setModePaiement(ModePaiement.cash);
-
-                    if (facturePayload.getSheetName().toLowerCase().contains("CC".toLowerCase())
-                            || facturePayload.getSheetName().toLowerCase().contains("Carte Bancaire".toLowerCase()))
-                        facturePayload.setModePaiement(ModePaiement.card);
-
-                    if (facturePayload.getSheetName().toLowerCase().contains("Chèque".toLowerCase()))
-                        facturePayload.setModePaiement(ModePaiement.check);
-
-
-                    if (etablissement.getOrganisation().getIsPrixUnitaireDefined()) {
-                        //On ajoute le prix unitaire dans les données
-                        facturePayload.getLignes().forEach(ligneProduitPayload -> {
-                            ligneProduitPayload.setPrixUnitaireHT(ligneProduitPayload.getMontantHT() / ligneProduitPayload.getQuantite());
-                        });
-                    }
-                } else {
-                    facturePayload.setModePaiement(ModePaiement.valueOf(modePaiement));
-                }
-                facturePayload.setEntreprise(finalGroups.get(0));//En réalité il s'agit de l'établissement
-                facturePayload.setPointVente(pointVente);
-            });*/
-            //facture.setTypeFacture(TypeFacture.valueOf(typeFacture));
-
-//            System.out.println(factures);
-            //Sauvegarde du fichier
-            //String storeName = fileStorageService.storeFile(file, "Facture-" + new SimpleDateFormat("yyyyMMdddHHmmss").format(new Date()));
-
             for (FacturePayload facture : factures) {
                 facture.setReception(messageCommercial);
                 //Appel de l'api DGI
@@ -492,6 +422,110 @@ public class FactureApi {
             log.error("Exception occurred while processing file", e);
             return Utilities.createErrorResponse("Une erreur interne est survenue", List.of(), HttpStatus.INTERNAL_SERVER_ERROR);
         }
+    }
+
+    @PostMapping("/partial-save")
+    @PreAuthorize("hasRole('Compta-BK')")
+    public ResponseEntity<Map<String, Object>> partialSave(@RequestParam("file") MultipartFile file,
+                                                           @RequestParam(name = "type", defaultValue = "FACTURE_VENTE") String typeFacture,
+                                                           @RequestParam(name = "client", defaultValue = "B2C") String typeClient,
+                                                           @RequestParam(name = "paiement", defaultValue = "cash") String modePaiement,
+                                                           @RequestParam(name = "pointvente", defaultValue = "pv") String pointVente,
+                                                           @RequestParam(name = "facturation", defaultValue = "") String facturation,
+                                                           @RequestParam(name = "messageCommercial", defaultValue = "") String messageCommercial,
+                                                           @AuthenticationPrincipal Jwt jwt) {
+        log.trace("Starting processing get request for partial save");
+        try {
+
+            //Recuperation du group
+            List<String> groups = jwt.getClaim("groups");
+            if (groups == null) groups = List.of();
+            if (groups.isEmpty())
+                return Utilities.createErrorResponse("Etablissement agent inconnue", List.of(), HttpStatus.BAD_REQUEST);
+
+            //Recuperation de l'établissement
+            EtablissementDto etablissement = etablissementService.findByNom(groups.get(0));
+            PointVenteDto pointVenteDto = pointVenteService.findByNom(pointVente);
+
+            // Process the uploaded file
+            if (file.isEmpty()) {
+                log.error("Fichier inexistant!");
+                return Utilities.createErrorResponse("Aucun fichier chargé!", List.of(), HttpStatus.BAD_REQUEST);
+            }
+
+            // Log file details
+            String fileName = file.getOriginalFilename();
+            String fileType = file.getContentType();
+            long fileSize = file.getSize();
+
+            log.info("Received file: Name={}, Type={}, Size={}", fileName, fileType, fileSize);
+
+            // Validate file type by extension
+            if (fileName != null && !fileName.endsWith(".xlsx") && !fileName.endsWith(".xls") && !fileName.endsWith(".xlsm")) {
+                log.error("Unsupported file type: {}", fileType);
+                return Utilities.createErrorResponse("Format de fichier non supporté!", List.of(), HttpStatus.UNSUPPORTED_MEDIA_TYPE);
+            }
+
+            List<FacturePayload> factures = traitementFacture(etablissement, file, typeFacture, typeClient, modePaiement, pointVenteDto, facturation);
+
+            String data = Json.pretty(factures);
+
+            FactureLoadDto factureDto = FactureLoadDto.builder()
+                    .lienFichier(fileName)
+                    .dataFacture(data)
+                    .bkExtractedData(new ObjectMapper().writeValueAsString(bkExtractedData))
+                    .pointVente(pointVenteDto)
+                    .build();
+
+            factureLoadService.saveOrUpdate(factureDto);
+
+            return Utilities.createSuccessResponse(HttpStatus.OK, factures, "Fichier chargé avec succès");
+
+
+        } catch (IOException e) {
+            return Utilities.createErrorResponse("Une erreur est survenue lors du traitement du fichier", List.of(), HttpStatus.INTERNAL_SERVER_ERROR);
+        } catch (Exception e) {
+            log.error("Exception occurred while processing file", e);
+            return Utilities.createErrorResponse("Une erreur interne est survenue", List.of(), HttpStatus.INTERNAL_SERVER_ERROR);
+        }
+    }
+
+    @GetMapping("/loaded/byentreprise")
+    public ResponseEntity<Map<String, Object>> getAllLoadedByEntreprise(@RequestParam(value = "pageNum", defaultValue = "0", required = false) Integer pageNum, @RequestParam(value = "size", defaultValue = "10", required = false) Integer size, @AuthenticationPrincipal Jwt jwt) {
+        log.trace("Starting processing getAll request!");
+
+        Pageable pageable = PageRequest.of(pageNum, size);
+
+        //Recuperation du group
+        List<String> groups = jwt.getClaim("groups");
+        if (groups == null) groups = List.of();
+        if (groups.isEmpty())
+            return Utilities.createErrorResponse("Etablissement agent inconnue", List.of(), HttpStatus.BAD_REQUEST);
+
+        //Recuperation de l'établissement
+        EtablissementDto etablissement = etablissementService.findByNom(groups.get(0));
+
+        Page<FactureLoadDto> pages = factureLoadService.findByEntreprise(pageable, etablissement != null ? etablissement.getOrganisation().getRaisonSocial() : "");
+        List<FactureLoadDto> factures = pages.getContent();
+        if (!factures.isEmpty()) {
+            return Utilities.createSuccessResponse(HttpStatus.OK, pages, "Liste des factures chargées");
+        }
+
+        log.info("No element found while hitting getAll");
+        return Utilities.createErrorResponse("Aucun Facture trouvé", List.of(), HttpStatus.OK);
+    }
+
+    @GetMapping(path = "/{id}/saved")
+    public ResponseEntity<Map<String, Object>> getSaved(@PathVariable UUID id) {
+        log.trace("Starting processing get request for id :" + id);
+
+        FactureLoadDto factureDto = factureLoadService.get(id);
+        if (factureDto != null) {
+            return Utilities.createSuccessResponse(HttpStatus.OK, factureDto, "Facture trouvé");
+        }
+
+        log.info("Entity having id not found, id : " + id);
+        return Utilities.createSuccessResponse(HttpStatus.NOT_FOUND, Optional.empty(), "Facture avec l'id " + id + " non trouvé");
     }
 
     @PostMapping("/avoir")

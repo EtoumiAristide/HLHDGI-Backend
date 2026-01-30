@@ -255,7 +255,7 @@ public class HLHExcelFactureExtractor {
                         if (montantCell != null && (montantCell.getCellType() == CellType.NUMERIC || montantCell.getCellType() == CellType.FORMULA)) {
                             tdt.setMontant(Double.parseDouble(decimalFormat.format(montantCell.getNumericCellValue())));
                         }
-                    } else if ("TCN".equalsIgnoreCase(cellValue)) {
+                    } else if ("TCN".equalsIgnoreCase(cellValue) || "Taxe communale".equalsIgnoreCase(cellValue)) {
                         // Base TCN (colonne D)
                         Cell baseCell = row.getCell(3);
                         if (baseCell != null && (baseCell.getCellType() == CellType.NUMERIC || baseCell.getCellType() == CellType.FORMULA)) {
@@ -307,8 +307,10 @@ public class HLHExcelFactureExtractor {
         totaux.setTva(tva);
 
         //Calcul du montant TCN
-        tcn.setTaux(tcn.getMontant()/tcn.getBase());
-        totaux.setTcn(tcn);
+        if (tcn.getMontant() != 0) {
+            tcn.setTaux(tcn.getMontant() / tcn.getBase());
+            totaux.setTcn(tcn);
+        }
 
         facture.setTotauxPayload(totaux);
     }

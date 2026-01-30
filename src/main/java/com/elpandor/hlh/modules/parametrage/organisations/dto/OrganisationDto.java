@@ -29,6 +29,7 @@ public class OrganisationDto implements Serializable {
     private Boolean isFacturationMultiple;
 
     private Boolean isAvoirFirstVersion = Boolean.FALSE;
+    private Boolean isBkWorkflow;
 
     private Double valeurTVA;
     private Double valeurTDT;
