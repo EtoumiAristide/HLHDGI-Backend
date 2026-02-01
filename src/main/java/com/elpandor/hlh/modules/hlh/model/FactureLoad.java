@@ -35,6 +35,7 @@ public class FactureLoad extends AuditModel {
     private String lienFichier;
     @Column(name = "data_facture", columnDefinition = "TEXT DEFAULT NULL")
     private String dataFacture;
+    private String reception;
 
     @Column(name = "bk_extracted_data", columnDefinition = "TEXT DEFAULT NULL")
     private String bkExtractedData;

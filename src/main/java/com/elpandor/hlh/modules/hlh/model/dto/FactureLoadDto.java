@@ -19,6 +19,8 @@ public class FactureLoadDto {
 
     private PointVenteDto pointVente;
 
+    private String reception;
+
     private Instant dateCreation;
     private Instant dateModification;
 }

@@ -26,7 +26,9 @@ import com.elpandor.hlh.modules.parametrage.organisations.dto.EtablissementDto;
 import com.elpandor.hlh.modules.parametrage.organisations.dto.PointVenteDto;
 import com.elpandor.hlh.modules.parametrage.organisations.service.EtablissementService;
 import com.elpandor.hlh.modules.parametrage.organisations.service.PointVenteService;
+import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.ObjectWriter;
 import com.google.gson.Gson;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
@@ -242,7 +244,7 @@ public class FactureApi {
     }
 
     @PostMapping("/upload")
-    @PreAuthorize("hasRole('Admin') or hasRole('Agent')")
+    @PreAuthorize("hasRole('Admin') or hasRole('Agent') or hasRole('Compta-BK')")
     public ResponseEntity<Map<String, Object>> uploadFile(@RequestParam("file") MultipartFile file,
                                                           @RequestParam(name = "type", defaultValue = "FACTURE_VENTE") String typeFacture,
                                                           @RequestParam(name = "client", defaultValue = "B2C") String typeClient,
@@ -305,13 +307,15 @@ public class FactureApi {
 
     @PostMapping
     @PreAuthorize("hasRole('Admin') or hasRole('Agent')")
-    public ResponseEntity<Map<String, Object>> save(@RequestParam("file") MultipartFile file,
+    public ResponseEntity<Map<String, Object>> save(@RequestParam(value = "file", required = false) MultipartFile file,
                                                     @RequestParam(name = "type", defaultValue = "FACTURE_VENTE") String typeFacture,
                                                     @RequestParam(name = "client", defaultValue = "B2C") String typeClient,
                                                     @RequestParam(name = "paiement", defaultValue = "cash") String modePaiement,
                                                     @RequestParam(name = "pointvente", defaultValue = "pv") String pointVente,
                                                     @RequestParam(name = "facturation", defaultValue = "") String facturation,
                                                     @RequestParam(name = "messageCommercial", defaultValue = "") String messageCommercial,
+                                                    @RequestParam(name = "dataFacture", required = false) String dataFacture,
+                                                    @RequestParam(name = "dataFactureLoadId", required = false) String dataFactureLoadId,
                                                     @AuthenticationPrincipal Jwt jwt) {
         log.trace("Starting processing get request for save");
         try {
@@ -326,27 +330,38 @@ public class FactureApi {
             EtablissementDto etablissement = etablissementService.findByNom(groups.get(0));
             PointVenteDto pointVenteDto = pointVenteService.findByNom(pointVente);
 
-            // Process the uploaded file
-            if (file.isEmpty()) {
-                log.error("Fichier inexistant!");
-                return Utilities.createErrorResponse("Aucun fichier chargé!", List.of(), HttpStatus.BAD_REQUEST);
+            List<FacturePayload> factures = new ArrayList<>();
+            FactureLoadDto factureLoadDto = null;
+
+            if (file != null) {
+                // Process the uploaded file
+                if (file.isEmpty()) {
+                    log.error("Fichier inexistant!");
+                    return Utilities.createErrorResponse("Aucun fichier chargé!", List.of(), HttpStatus.BAD_REQUEST);
+                }
+
+                // Log file details
+                String fileName = file.getOriginalFilename();
+                String fileType = file.getContentType();
+                long fileSize = file.getSize();
+
+                log.info("Received file: Name={}, Type={}, Size={}", fileName, fileType, fileSize);
+
+                // Validate file type by extension
+                assert fileName != null;
+                if (!fileName.endsWith(".xlsx") && !fileName.endsWith(".xls") && !fileName.endsWith(".xlsm")) {
+                    log.error("Unsupported file type: {}", fileType);
+                    return Utilities.createErrorResponse("Format de fichier non supporté!", List.of(), HttpStatus.UNSUPPORTED_MEDIA_TYPE);
+                }
+                factures = traitementFacture(etablissement, file, typeFacture, typeClient, modePaiement, pointVenteDto, facturation);
             }
 
-            // Log file details
-            String fileName = file.getOriginalFilename();
-            String fileType = file.getContentType();
-            long fileSize = file.getSize();
-
-            log.info("Received file: Name={}, Type={}, Size={}", fileName, fileType, fileSize);
-
-            // Validate file type by extension
-            assert fileName != null;
-            if (!fileName.endsWith(".xlsx") && !fileName.endsWith(".xls") && !fileName.endsWith(".xlsm")) {
-                log.error("Unsupported file type: {}", fileType);
-                return Utilities.createErrorResponse("Format de fichier non supporté!", List.of(), HttpStatus.UNSUPPORTED_MEDIA_TYPE);
+            if (dataFacture != null) {
+                factures = new ObjectMapper().readValue(dataFacture, new TypeReference<List<FacturePayload>>() {});
+                if (dataFactureLoadId != null) {
+                    factureLoadDto = factureLoadService.get(UUID.fromString(dataFactureLoadId));
+                }
             }
-
-            List<FacturePayload> factures = traitementFacture(etablissement, file, typeFacture, typeClient, modePaiement, pointVenteDto, facturation);
 //
             for (FacturePayload facture : factures) {
                 facture.setReception(messageCommercial);
@@ -408,6 +423,11 @@ public class FactureApi {
                             .build();
 
                     factureService.saveOrUpdate(factureDto);
+
+                    //On supprime la facture chare s'il y'a lieu
+                    if (factureLoadDto != null) {
+                        factureLoadService.delete(factureLoadDto.getId());
+                    }
                 } else {
                     log.error("L'authentification de la facture à échoué");
                     return Utilities.createErrorResponse("L'authentification de la facture à échoué", response.getBody(), HttpStatus.INTERNAL_SERVER_ERROR);
@@ -473,6 +493,7 @@ public class FactureApi {
             FactureLoadDto factureDto = FactureLoadDto.builder()
                     .lienFichier(fileName)
                     .dataFacture(data)
+                    .reception(messageCommercial)
                     .bkExtractedData(new ObjectMapper().writeValueAsString(bkExtractedData))
                     .pointVente(pointVenteDto)
                     .build();
@@ -1301,6 +1322,21 @@ public class FactureApi {
         }
 
         factureService.delete(id);
+        log.info("Entity deleted having id :" + id);
+        return Utilities.createSuccessResponse(HttpStatus.OK, Optional.empty(), "Facture supprimé avec succès");
+    }
+
+    @DeleteMapping(path = "/{id}/saved")
+    @PreAuthorize("hasRole('Admin-BK') or hasRole('Compta-BK')")
+    public ResponseEntity<Map<String, Object>> deleteLoaded(@PathVariable UUID id) {
+        log.trace("Starting  processing of delete request for id :" + id);
+
+        if (!factureLoadService.isExist(id)) {
+            log.info("Entity not found while processing the delete request for id :" + id);
+            return Utilities.createErrorResponse("Facture avec l'id" + id + " non trouvé", null, HttpStatus.NOT_FOUND);
+        }
+
+        factureLoadService.delete(id);
         log.info("Entity deleted having id :" + id);
         return Utilities.createSuccessResponse(HttpStatus.OK, Optional.empty(), "Facture supprimé avec succès");
     }
