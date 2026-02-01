@@ -1337,6 +1337,7 @@ public class FactureApi {
         }
 
         factureLoadService.delete(id);
+
         log.info("Entity deleted having id :" + id);
         return Utilities.createSuccessResponse(HttpStatus.OK, Optional.empty(), "Facture supprimé avec succès");
     }
