@@ -9,10 +9,7 @@ import org.springframework.stereotype.Component;
 import java.io.File;
 import java.io.IOException;
 import java.math.BigDecimal;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -26,7 +23,7 @@ public class DeloittePDFExtractor3 {
         try {
             // Étape 1: Extraire le texte
             String texte = extraireTexte(pdfBytes);
-            System.out.println("texte "+texte);
+            System.out.println("texte " + texte);
 
             if (texte.trim().isEmpty()) {
                 return null;
@@ -44,7 +41,7 @@ public class DeloittePDFExtractor3 {
         } catch (Exception e) {
             e.printStackTrace();
         }
-            return null;
+        return null;
     }
 
     private String extraireTexte(byte[] pdfBytes) throws IOException {
@@ -89,14 +86,15 @@ public class DeloittePDFExtractor3 {
         facture.setContactClient(extraireContactClient(texte));
 
         // 7. Bon de commande
-        facture.setBonDeCommande(extraireBonDeCommande(texte));
+        //facture.setBonDeCommande(extraireBonDeCommande(texte));
 
         // 8. Items de la facture (description + montant)
         facture.setItems(extraireItemsFacture(texte));
         System.out.println("Nombre d'items: " + facture.getItems().size());
 
         // 9. Montants HT, TVA, TTC et devise
-        Map<String, Object> montants = extraireMontantsFacture(texte);
+        Map<String, BigDecimal> montants = extraireMontantsFactureLigne(texte);
+        /*Map<String, Object> montants = extraireMontantsFacture(texte);
         facture.setMontantHT((BigDecimal) montants.get("ht"));
         facture.setMontantTVA((BigDecimal) montants.get("tva"));
         facture.setTauxTVA((String) montants.get("tauxTVA"));
@@ -106,7 +104,7 @@ public class DeloittePDFExtractor3 {
         System.out.println("Montants - HT: " + facture.getMontantHT() +
                 ", TVA: " + facture.getMontantTVA() +
                 ", TTC: " + facture.getMontantTTC() +
-                ", Devise: " + facture.getDevise());
+                ", Devise: " + facture.getDevise());*/
 
         return facture;
     }
@@ -117,16 +115,22 @@ public class DeloittePDFExtractor3 {
 
         String[] lignes = texte.split("\n");
         boolean dateTrouvee = false;
-
+        //System.out.println("Lignes: " + Arrays.toString(lignes));
+        String client = "";
         for (int i = 0; i < lignes.length; i++) {
             String ligne = lignes[i].trim();
+            //System.out.println("ligneClient " + ligne);
 
             // Chercher la ligne avec la date
             if (ligne.matches(".*Abidjan, le.*\\d{1,2}.*[a-zA-Z]+.*\\d{4}.*")) {
+
+                client = ligne.replaceAll(".*le\\s+\\d{1,2}\\s+\\p{L}+\\s+\\d{4}", "").trim();
+                //System.out.println("ligneClient recup " + ligne);
+
                 dateTrouvee = true;
 
                 // Regarder les lignes suivantes pour le nom du client
-                for (int j = i + 1; j < Math.min(i + 5, lignes.length); j++) {
+                /*for (int j = i + 1; j < Math.min(i + 5, lignes.length); j++) {
                     String ligneClient = lignes[j].trim();
 
                     // Le nom du client est généralement en majuscules et ne contient pas certains mots
@@ -144,11 +148,12 @@ public class DeloittePDFExtractor3 {
                                 .replaceAll("\\s+", " ")  // Espaces multiples
                                 .trim();
                     }
-                }
+                }*/
             }
+            if (dateTrouvee) break;
 
             // Alternative: Chercher directement le nom en majuscules après "Abidjan, le"
-            if (ligne.contains("Abidjan, le")) {
+            /*if (ligne.contains("Abidjan, le")) {
                 for (int j = i + 1; j < Math.min(i + 10, lignes.length); j++) {
                     String ligneSuivante = lignes[j].trim();
                     if (ligneSuivante.length() > 5 &&
@@ -159,10 +164,10 @@ public class DeloittePDFExtractor3 {
                         return ligneSuivante;
                     }
                 }
-            }
+            }*/
         }
 
-        return null;
+        return client;
     }
 
     private String extraireNumeroFacture(String texte) {
@@ -184,10 +189,10 @@ public class DeloittePDFExtractor3 {
     }
 
     private String extraireReferenceInterne(String texte) {
-        Pattern pattern = Pattern.compile("Réf\\s*(?:int|Int)[\\s:.]*([\\w\\s/._-]+)");
+        Pattern pattern = Pattern.compile("Réf\\s*lnt[\\s:.]*([\\w\\s/._-]+?)(?=\\s+Montant)", Pattern.CASE_INSENSITIVE);
         Matcher matcher = pattern.matcher(texte);
         if (matcher.find()) {
-            return matcher.group(1).trim();
+            return matcher.group(1).trim().replaceAll("\\s+", " "); // normalisation des espaces;
         }
         return null;
     }
@@ -246,7 +251,7 @@ public class DeloittePDFExtractor3 {
 
     private List<DeloitteFactureDTO.ItemFacture> extraireItemsFacture(String texte) {
         List<DeloitteFactureDTO.ItemFacture> items = new ArrayList<>();
-        String[] lignes = texte.split("\n");
+        /*String[] lignes = texte.split("\n");
 
         // Chercher la section des items (entre la référence et "Total H.T.")
         boolean dansSectionItems = false;
@@ -282,7 +287,7 @@ public class DeloittePDFExtractor3 {
                         String montantStr = montantMatcher.group(1)
                                 .replaceAll("\\s+", "")
                                 .replace(",", ".");
-                        System.out.println("montantStr "+montantStr);
+                        System.out.println("montantStr " + montantStr);
                         montant = new BigDecimal(montantStr);
 
                         // Retirer le montant de la description
@@ -310,7 +315,48 @@ public class DeloittePDFExtractor3 {
                     }
                 }
             }
+        }*/
+
+        // 1️⃣ Extraire le bloc des items
+        Pattern blockPattern = Pattern.compile(
+                "Montant[\\s\\S]*?(?=Total\\s+H\\.T\\.)",
+                Pattern.CASE_INSENSITIVE
+        );
+
+        Matcher blockMatcher = blockPattern.matcher(texte);
+
+        if (!blockMatcher.find()) {
+            System.out.println("Bloc Montant -> Total H.T. introuvable");
+            return null;
         }
+
+        String itemsBlock = blockMatcher.group();
+
+        // 2️⃣ Regex ligne + montant
+        Pattern lineWithAmountPattern = Pattern.compile(
+                "(.+?)\\s+(\\d{1,3}(?:[\\s.,]\\d{3})*(?:[.,]\\d{2})?)",
+                Pattern.CASE_INSENSITIVE
+        );
+
+        Matcher lineMatcher = lineWithAmountPattern.matcher(itemsBlock);
+
+        while (lineMatcher.find()) {
+            String libelle = lineMatcher.group(1)
+                    .trim()
+                    .replaceAll("\\s+", " ");
+
+            String montant = lineMatcher.group(2)
+                    .replaceAll("\\s+", " ");
+//            System.out.println("montant "+montant);
+            DeloitteFactureDTO.ItemFacture item = new DeloitteFactureDTO.ItemFacture();
+            item.setDescription(libelle);
+            item.setMontant(parseAmount(montant));
+            // La devise sera ajoutée plus tard
+            items.add(item);
+        }
+
+        // 3️⃣ Affichage
+        items.forEach(System.out::println);
 
         return items;
     }
@@ -336,6 +382,7 @@ public class DeloittePDFExtractor3 {
             // Total HT
             if (ligne.contains("Total H.T.") && i + 1 < lignes.length) {
                 String montantHT = extraireMontantLigne(lignes[i + 1]);
+                System.out.println("montantHT: " + montantHT);
                 if (!montantHT.isEmpty()) {
                     result.put("ht", new BigDecimal(montantHT));
                 }
@@ -382,6 +429,52 @@ public class DeloittePDFExtractor3 {
         return "";
     }
 
+    private Map<String, BigDecimal> extraireMontantsFactureLigne(String texte) {
+        Map<String, BigDecimal> result = new HashMap<>();
+
+        // 1️⃣ Extraire le bloc Total H.T. -> Total TTC
+        Pattern blockPattern = Pattern.compile(
+                "Total\\s+H\\.T\\.[\\s\\S]*?Total\\s+TTC[\\s\\S]*?$",
+                Pattern.CASE_INSENSITIVE
+        );
+
+        Matcher blockMatcher = blockPattern.matcher(texte);
+
+        if (!blockMatcher.find()) {
+            System.out.println("Bloc Totaux introuvable");
+            return null;
+        }
+
+        String totalsBlock = blockMatcher.group();
+
+        // 2️⃣ Extraire lignes alignées avec montants
+        Pattern linePattern = Pattern.compile(
+                "(?m)^(.+?)\\s{5,}((?:\\d{1,3}(?:[\\s.,]\\d{3})+(?:[.,]\\d{2})?)|(?:\\d+[.,]\\d{2}))"
+        );
+
+        Matcher matcher = linePattern.matcher(totalsBlock);
+
+        while (matcher.find()) {
+
+            String label = matcher.group(1)
+                    .trim()
+                    .replaceAll("\\s+", " ");
+
+            String rawAmount = matcher.group(2);
+
+            BigDecimal amount = parseAmount(rawAmount);
+
+            result.put(label, amount);
+        }
+
+        // 3️⃣ Résultat
+        result.forEach((k, v) ->
+                System.out.println(k + " = " + v)
+        );
+
+        return result;
+    }
+
     public DeloitteFactureDTO extraireDonneesFacture(String cheminFichier) {
         try {
             File file = new File(cheminFichier);
@@ -394,5 +487,27 @@ public class DeloittePDFExtractor3 {
 
     public boolean testerOCR() {
         return ocrService != null;
+    }
+
+    private BigDecimal parseAmount(String rawAmount) {
+
+        if (rawAmount == null || rawAmount.isBlank()) {
+            return BigDecimal.ZERO;
+        }
+
+        // 1️⃣ Supprimer devise et caractères non numériques utiles
+        String cleaned = rawAmount
+                .replaceAll("[^0-9,\\.]", "");
+
+        // 2️⃣ Cas virgule décimale (français)
+        if (cleaned.contains(",") && !cleaned.contains(".")) {
+            cleaned = cleaned.replace(".", "");
+            cleaned = cleaned.replace(",", ".");
+        }
+
+        // 3️⃣ Supprimer séparateurs de milliers
+        cleaned = cleaned.replaceAll("(?<=\\d)[\\s\\.](?=\\d{3})", "");
+
+        return new BigDecimal(cleaned);
     }
 }

@@ -7,6 +7,7 @@ public class TotauxPayload {
     private double ht;
     private TaxePayload tdt;
     private TaxePayload tva;
+    private TaxePayload tcn;
     private double ttc;
     private String modePaiement;
 }

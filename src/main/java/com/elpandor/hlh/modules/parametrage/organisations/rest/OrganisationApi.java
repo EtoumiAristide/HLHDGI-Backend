@@ -3,8 +3,14 @@ package com.elpandor.hlh.modules.parametrage.organisations.rest;
 import com.elpandor.hlh.common.service.FileStorageService;
 import com.elpandor.hlh.common.utils.Utilities;
 import com.elpandor.hlh.modules.parametrage.compteutilisateur.model.dto.CompteUtilisateurDto;
+import com.elpandor.hlh.modules.parametrage.organisations.dto.EtablissementDto;
 import com.elpandor.hlh.modules.parametrage.organisations.dto.OrganisationDto;
+import com.elpandor.hlh.modules.parametrage.organisations.dto.OrganisationRequest;
+import com.elpandor.hlh.modules.parametrage.organisations.service.EtablissementService;
 import com.elpandor.hlh.modules.parametrage.organisations.service.OrganisationService;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
+import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -41,15 +47,18 @@ public class OrganisationApi {
 
     private final FileStorageService fileStorageService;
 
+    private final EtablissementService etablissementService;
+
     //@Value("${upload_dir}")
     private String uploadsDir = "uploads";
 
     private Path root;
 
     @Autowired
-    public OrganisationApi(OrganisationService organisationService, FileStorageService fileStorageService) {
+    public OrganisationApi(OrganisationService organisationService, FileStorageService fileStorageService, EtablissementService etablissementService) {
         this.organisationService = organisationService;
         this.fileStorageService = fileStorageService;
+        this.etablissementService = etablissementService;
         initRootPath();
     }
 
@@ -107,29 +116,15 @@ public class OrganisationApi {
         return Utilities.createErrorResponse("Aucune entreprise trouvé", List.of(), HttpStatus.OK);
     }
 
-    @GetMapping("/utilisateur")
-    public ResponseEntity<Map<String, Object>> getByUtilisateur(@AuthenticationPrincipal Jwt jwt) {
-        log.trace("Starting processing getAll request!");
-        String userId = jwt.getClaim("sub");
-        CompteUtilisateurDto organisationUtilisateurDto = organisationService.getOrganisationByUtilisateur(UUID.fromString(userId));
-
-        if (organisationUtilisateurDto != null) {
-            if (organisationUtilisateurDto.getOrganisation().getLogo() != null) {
-                organisationUtilisateurDto.getOrganisation().setLogo(Utilities.getFileUri(organisationUtilisateurDto.getOrganisation().getLogo(), "organisations/logo"));
-            }
-            return Utilities.createSuccessResponse(HttpStatus.OK, organisationUtilisateurDto, "Liste des entreprise");
-        }
-
-        log.info("No element found while hitting getAll");
-        return Utilities.createErrorResponse("Aucune donnée trouvé", List.of(), HttpStatus.NO_CONTENT);
-    }
-
-
     @PostMapping(consumes = MediaType.MULTIPART_FORM_DATA_VALUE, produces = MediaType.APPLICATION_JSON_VALUE)
     @PreAuthorize("hasRole('Super-Admin')")
-    public ResponseEntity<Map<String, Object>> save(@RequestParam(required = false, value = "image") MultipartFile image, @ModelAttribute OrganisationDto organisationDto) {
+    public ResponseEntity<Map<String, Object>> save(@RequestPart(required = false, value = "image") MultipartFile image, @ModelAttribute OrganisationRequest request) {
         log.trace("Starting processing Post request!");
+        OrganisationDto organisationDto = null;
         try {
+
+            ObjectMapper mapper = new ObjectMapper();
+            organisationDto = mapper.readValue(request.getOrganisationJson(), OrganisationDto.class);
 
 //            System.out.println(organisationDto);
             String fileName = null;
@@ -157,19 +152,23 @@ public class OrganisationApi {
         return Utilities.createSuccessResponse(HttpStatus.CREATED, organisationDto, "Entreprise créé avec succès");
     }
 
-    @PutMapping(path = "/{id}")
+    @PostMapping(path = "/{id}", consumes = MediaType.MULTIPART_FORM_DATA_VALUE, produces = MediaType.APPLICATION_JSON_VALUE)
     @PreAuthorize("hasRole('Super-Admin')")
-    public ResponseEntity<Map<String, Object>> update(@PathVariable Integer id, @RequestParam(required = false, value = "image") MultipartFile image, @ModelAttribute OrganisationDto organisationDto) {
-
+    public ResponseEntity<Map<String, Object>> update(@PathVariable Integer id, @RequestPart(required = false, value = "image") MultipartFile image, @ModelAttribute OrganisationRequest request) {
         log.trace("Starting processing put for id :" + id);
-        //Recherche de l'organisation dans la BD
-        OrganisationDto organisationDtoSearch = organisationService.get(id);
 
-        if (organisationDtoSearch != null) {
-            log.trace("processing put request for id :" + id);
-            organisationDto.setId(organisationDtoSearch.getId());
+        try {
+            ObjectMapper mapper = new ObjectMapper();
+            OrganisationDto organisationDto = mapper.readValue(request.getOrganisationJson(), OrganisationDto.class);
 
-            try {
+            //Recherche de l'organisation dans la BD
+            OrganisationDto organisationDtoSearch = organisationService.get(id);
+            if (organisationDtoSearch != null) {
+                log.trace("processing put request for id :" + id);
+                // Convertissez la chaîne JSON en OrganisationDto
+                organisationDto.setId(organisationDtoSearch.getId());
+
+//                try {
 
                 if (image != null) {
                     String fileName = fileStorageService.storeFile(image, organisationDto.getRaisonSocial().replaceAll("[^a-zA-Z0-9]", ""));
@@ -193,18 +192,25 @@ public class OrganisationApi {
 //                }
 
                 organisationDto = organisationService.saveOrUpdate(organisationDto);
-            } catch (Exception err) {
-                log.error("Error Occured while saving, Message : " + err.getMessage() + "; Cause :" + err.getCause());
-                return Utilities.createErrorResponse("Un erreur est survenue", List.of(), HttpStatus.INTERNAL_SERVER_ERROR);
-//                return new ResponseEntity<>(HttpStatus.INTERNAL_SERVER_ERROR);
-            }
+//                } catch (Exception err) {
+//                    err.printStackTrace();
+//                    log.error("Error Occured while saving, Message : " + err.getMessage() + "; Cause :" + err.getCause());
+//                    return Utilities.createErrorResponse("Un erreur est survenue", List.of(), HttpStatus.INTERNAL_SERVER_ERROR);
+////                return new ResponseEntity<>(HttpStatus.INTERNAL_SERVER_ERROR);
+//                }
 //            return new ResponseEntity<>(organisationDto, HttpStatus.OK);
-            return Utilities.createSuccessResponse(HttpStatus.CREATED, organisationDto, "Entreprise modifiée avec succès");
-        }
+                return Utilities.createSuccessResponse(HttpStatus.CREATED, organisationDto, "Entreprise modifiée avec succès");
+            }
 
-        log.info("Id mismatch for model (" + organisationDto + ") and request param :" + id);
+            log.info("Id mismatch for model (" + organisationDto + ") and request param :" + id);
 //        return new ResponseEntity<>(HttpStatus.NOT_MODIFIED);
-        return Utilities.createErrorResponse("Modification échouée", List.of(), HttpStatus.NOT_MODIFIED);
+            return Utilities.createErrorResponse("Modification échouée", List.of(), HttpStatus.NOT_MODIFIED);
+
+        } catch (Exception err) {
+            log.error("Error: " + err.getMessage(), err);
+            return Utilities.createErrorResponse("Erreur lors de la création",
+                    List.of(), HttpStatus.INTERNAL_SERVER_ERROR);
+        }
     }
 
     @DeleteMapping(path = "/{id}")

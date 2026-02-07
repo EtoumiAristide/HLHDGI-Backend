@@ -21,4 +21,7 @@ public class FacturePayload {
     private String pointVente;
     private String entreprise;
     private String sheetName;
+    private double pourcentageTVA;
+    private double pourcentageTDT;
+    private double valeurTCN;
 }
