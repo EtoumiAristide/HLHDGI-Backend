@@ -3,8 +3,10 @@ package com.elpandor.hlh.modules.parametrage.organisations.rest;
 import com.elpandor.hlh.common.service.FileStorageService;
 import com.elpandor.hlh.common.utils.Utilities;
 import com.elpandor.hlh.modules.parametrage.compteutilisateur.model.dto.CompteUtilisateurDto;
+import com.elpandor.hlh.modules.parametrage.organisations.dto.EtablissementDto;
 import com.elpandor.hlh.modules.parametrage.organisations.dto.OrganisationDto;
 import com.elpandor.hlh.modules.parametrage.organisations.dto.OrganisationRequest;
+import com.elpandor.hlh.modules.parametrage.organisations.service.EtablissementService;
 import com.elpandor.hlh.modules.parametrage.organisations.service.OrganisationService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
@@ -45,15 +47,18 @@ public class OrganisationApi {
 
     private final FileStorageService fileStorageService;
 
+    private final EtablissementService etablissementService;
+
     //@Value("${upload_dir}")
     private String uploadsDir = "uploads";
 
     private Path root;
 
     @Autowired
-    public OrganisationApi(OrganisationService organisationService, FileStorageService fileStorageService) {
+    public OrganisationApi(OrganisationService organisationService, FileStorageService fileStorageService, EtablissementService etablissementService) {
         this.organisationService = organisationService;
         this.fileStorageService = fileStorageService;
+        this.etablissementService = etablissementService;
         initRootPath();
     }
 
@@ -110,24 +115,6 @@ public class OrganisationApi {
         log.info("No element found while hitting getAll");
         return Utilities.createErrorResponse("Aucune entreprise trouvé", List.of(), HttpStatus.OK);
     }
-
-    @GetMapping("/utilisateur")
-    public ResponseEntity<Map<String, Object>> getByUtilisateur(@AuthenticationPrincipal Jwt jwt) {
-        log.trace("Starting processing getAll request!");
-        String userId = jwt.getClaim("sub");
-        CompteUtilisateurDto organisationUtilisateurDto = organisationService.getOrganisationByUtilisateur(UUID.fromString(userId));
-
-        if (organisationUtilisateurDto != null) {
-            if (organisationUtilisateurDto.getOrganisation().getLogo() != null) {
-                organisationUtilisateurDto.getOrganisation().setLogo(Utilities.getFileUri(organisationUtilisateurDto.getOrganisation().getLogo(), "organisations/logo"));
-            }
-            return Utilities.createSuccessResponse(HttpStatus.OK, organisationUtilisateurDto, "Liste des entreprise");
-        }
-
-        log.info("No element found while hitting getAll");
-        return Utilities.createErrorResponse("Aucune donnée trouvé", List.of(), HttpStatus.NO_CONTENT);
-    }
-
 
     @PostMapping(consumes = MediaType.MULTIPART_FORM_DATA_VALUE, produces = MediaType.APPLICATION_JSON_VALUE)
     @PreAuthorize("hasRole('Super-Admin')")

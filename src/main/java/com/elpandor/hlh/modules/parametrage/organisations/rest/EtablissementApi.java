@@ -102,7 +102,7 @@ public class EtablissementApi {
         List<EtablissementDto> etablissements = organisationDto != null ? etablissementService.getAllByOrganosation(organisationDto.getId()) : List.of();
         if (!etablissements.isEmpty()) {
 //            return new ResponseEntity<>(etablissementEntreprises, HttpStatus.OK);
-            return Utilities.createSuccessResponse(HttpStatus.OK, etablissements, "Liste des points de vente");
+            return Utilities.createSuccessResponse(HttpStatus.OK, etablissements, "Liste des etablissement");
         }
 
         log.info("No element found while hitting getAll");
@@ -124,7 +124,7 @@ public class EtablissementApi {
         EtablissementDto etablissement = etablissementService.findByNom(groups.get(0));
 
         if (etablissement != null) {
-            return Utilities.createSuccessResponse(HttpStatus.OK, etablissement, "Etablissement inexistant ");
+            return Utilities.createSuccessResponse(HttpStatus.OK, etablissement, "Etablissement trouve ");
         } else {
             log.info("No element found while hitting getAll");
 //        return new ResponseEntity<>(HttpStatus.NO_CONTENT);
