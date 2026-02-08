@@ -8,6 +8,7 @@ import com.elpandor.hlh.modules.hlh.model.TypeFacture;
 import com.elpandor.hlh.modules.hlh.model.dto.FactureDto;
 import com.elpandor.hlh.modules.hlh.model.dto.FactureLoadDto;
 import com.elpandor.hlh.modules.hlh.model.dto.payload.AvoirRequest;
+import com.elpandor.hlh.modules.hlh.model.dto.payload.AvoirRequestJson;
 import com.elpandor.hlh.modules.hlh.model.dto.payload.FactureAvoirPayload;
 import com.elpandor.hlh.modules.hlh.model.dto.payload.TokenResponse;
 import com.elpandor.hlh.modules.hlh.model.dto.payload.bk.BKExtractedData;
@@ -357,7 +358,8 @@ public class FactureApi {
             }
 
             if (dataFacture != null) {
-                factures = new ObjectMapper().readValue(dataFacture, new TypeReference<List<FacturePayload>>() {});
+                factures = new ObjectMapper().readValue(dataFacture, new TypeReference<List<FacturePayload>>() {
+                });
                 if (dataFactureLoadId != null) {
                     factureLoadDto = factureLoadService.get(UUID.fromString(dataFactureLoadId));
                 }
@@ -551,10 +553,11 @@ public class FactureApi {
 
     @PostMapping("/avoir")
     @PreAuthorize("hasRole('Admin') or hasRole('Agent')")
-    public ResponseEntity<Map<String, Object>> saveAvoir(@ModelAttribute AvoirRequest requestData,
+    public ResponseEntity<Map<String, Object>> saveAvoir(@ModelAttribute AvoirRequestJson requestPost,
                                                          @AuthenticationPrincipal Jwt jwt) {
 
         log.trace("Starting processing get request for saveAvoir");
+        AvoirRequest requestData = null;
         try {
 
             //Recuperation du group
@@ -565,6 +568,9 @@ public class FactureApi {
 
             //Recuperation de l'établissement
             EtablissementDto etablissement = etablissementService.findByNom(groups.get(0));
+
+            ObjectMapper objectMapper = new ObjectMapper();
+            requestData = objectMapper.readValue(requestPost.getData(), AvoirRequest.class);
 
             FactureDto factureSearch = factureService.findByNumFactureFNE(requestData.getNumeroFacture());
             if (factureSearch == null)
