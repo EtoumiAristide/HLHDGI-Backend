@@ -9,12 +9,16 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
+import java.time.Instant;
 import java.util.List;
 
 public interface FactureRepository extends JpaRepository<Facture, Integer> {
     Page<Facture> findByPointVente_Etablissement_Organisation_RaisonSocialOrderByIdDesc(Pageable pageable, String entreprise);
 
     Facture findByReponseFNEContainingIgnoreCase(String numFacture);
+
+    @Query("select f from Facture f where f.dataSend is not null and f.dateCreation >= :from and f.dateCreation < :to")
+    List<Facture> findBkFacturesByDateCreationBetween(@Param("from") Instant from, @Param("to") Instant to);
 
     @Query(value = """
                 SELECT
