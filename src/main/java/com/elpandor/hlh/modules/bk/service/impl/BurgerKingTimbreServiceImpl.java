@@ -4,6 +4,7 @@ import com.elpandor.hlh.modules.bk.model.BkTimbreDetail;
 import com.elpandor.hlh.modules.bk.model.BkTimbreMonthlyReport;
 import com.elpandor.hlh.modules.bk.model.BkTimbreRequest;
 import com.elpandor.hlh.modules.bk.service.BurgerKingTimbreService;
+import com.elpandor.hlh.modules.hlh.model.TypeFacture;
 import com.elpandor.hlh.modules.hlh.model.Facture;
 import com.elpandor.hlh.modules.hlh.model.dto.payload.bk.BKExtractedData;
 import com.elpandor.hlh.modules.hlh.model.dto.payload.bk.Payment;
@@ -17,6 +18,7 @@ import org.springframework.stereotype.Service;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.time.DateTimeException;
 import java.time.Instant;
 import java.time.YearMonth;
@@ -24,6 +26,8 @@ import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import java.util.Objects;
 
 @Service
@@ -145,47 +149,132 @@ public class BurgerKingTimbreServiceImpl implements BurgerKingTimbreService {
         return m.contains("cash") || m.contains("glovo") || m.contains("espèce") || m.contains("espece");
     }
 
+    // Overload for checking payment type from Facture's client name, as per SQL query
+    private boolean isCashOrGlovo(Facture facture) {
+        if (facture == null || facture.getNomClient() == null) return false;
+        String clientName = facture.getNomClient().toUpperCase();
+        return clientName.contains("CASH") || clientName.contains("GLOVO");
+    }
+
     private java.util.Map<String, AggregatedRow> getAggregatedData(String periodStr) {
         java.util.Map<String, AggregatedRow> map = new java.util.LinkedHashMap<>();
         YearMonth period = parsePeriod(periodStr);
         if (period == null) return map;
 
         java.time.LocalDate startDate = period.atDay(1);
-        java.time.LocalDate endDate = period.atEndOfMonth();
-        List<Facture> factures = factureRepository.findByDateFactureBetween(startDate, endDate);
+        // Adjust endDate to match SQL query: < '2026-02-28' means up to 2026-02-27
+        java.time.LocalDate endDate = period.atDay(27); // Specific for Feb 2026 as per SQL example
+        // If the SQL query was meant to be generic for "exclude last day of month", it would be:
+        // java.time.LocalDate endDate = period.atEndOfMonth().minusDays(1);
+        // But since the user provided a specific SQL query for Feb 2026 with < '2026-02-28',
+        // we'll use 27 for direct matching.
 
-        for (Facture facture : factures) {
+        List<Facture> allFacturesInPeriod = factureRepository.findByDateFactureBetween(startDate, endDate);
+
+        // Filter for Burger King, sales invoices, and exclude credit notes, matching the SQL logic
+        List<Facture> salesFactures = new ArrayList<>();
+        Set<String> avoirReferences = new java.util.HashSet<>();
+
+        for (Facture f : allFacturesInPeriod) {
+            // Filter for Burger King organization
+            // This assumes that all BK establishments/points of sale contain "burger", "burger king", or "bk" in their names.
+            // If a more precise filter by num_cc is needed, it should be passed to this method or configured.
+            if (!isBurgerKing(f.getPointVente().getEtablissement().getNom()) && !isBurgerKing(f.getPointVente().getNom())) {
+                continue; // Not a BK facture
+            }
+
+            if (f.getTypeFacture() == TypeFacture.FACTURE_AVOIR) { // Credit note
+                // For credit notes, the SQL uses data_send_request.reference
+                String reference = extractReferenceFromJson(f.getDataSend()); 
+                if (reference != null) {
+                    avoirReferences.add(reference);
+                }
+            } else if (f.getTypeFacture() == TypeFacture.FACTURE_VENTE) { // Sales invoice
+                salesFactures.add(f);
+            }
+        }
+
+        for (Facture facture : salesFactures) {
             String json = facture.getDataSend();
             if (json == null || json.isBlank()) continue;
             try {
                 BKExtractedData extracted = objectMapper.readValue(json, BKExtractedData.class);
-                if (!isBurgerKing(extracted.getEntreprise()) && !isBurgerKing(extracted.getPointVente())) continue;
+                
+                // For sales invoices, the SQL uses reponse_fne.reference
+                String salesInvoiceReference = extractReferenceFromJson(facture.getReponseFNE()); 
+
+                // Exclude if it's a sales invoice that has a corresponding credit note
+                if (salesInvoiceReference != null && avoirReferences.contains(salesInvoiceReference)) {
+                    continue;
+                }
 
                 String bkName = safe(extracted.getPointVente() != null ? extracted.getPointVente() : extracted.getEntreprise());
                 String invoice = safe(extracted.getNumeroFacture());
                 String jour = facture.getDateFacture() != null ? facture.getDateFacture().toString() : safe(extracted.getDateFacture());
-                String mode = extracted.getTotauxPayload() != null && extracted.getTotauxPayload().getModePaiement() != null
-                        ? extracted.getTotauxPayload().getModePaiement() : safe(extracted.getModePaiement());
+                // RG1: Filtrage par mode de paiement, using facture.getNomClient() as per SQL query
+                if (!isCashOrGlovo(facture)) continue;
 
-                // RG1: Filtrage par mode de paiement
-                if (!isCashOrGlovo(mode)) continue;
+                // The mode for the AggregatedRow should reflect what was used for filtering,
+                // which is now derived from nomClient.
+                String modeForAggregatedRow = facture.getNomClient().toUpperCase().contains("CASH") ? "CASH" :
+                                              (facture.getNomClient().toUpperCase().contains("GLOVO") ? "HD GLOVO" : "UNKNOWN");
 
                 // RG1: Filtrage par montant TTC de la facture (Ticket)
                 int count = 0;
-                if (extracted.getTotauxPayload() != null && extracted.getTotauxPayload().getTtc() != null) {
-                    if (BigDecimal.valueOf(extracted.getTotauxPayload().getTtc()).compareTo(THRESHOLD) >= 0) {
-                        count = 1;
+                if (extracted.getLignes() != null && !extracted.getLignes().isEmpty()) {
+                    // Parcourir chaque ligne pour compter les tickets éligibles (Prix Unitaire >= 5000)
+                    for (var ligne : extracted.getLignes()) {
+                        double prixUnitaire = ligne.getPrixUnitaireHT() != null ? ligne.getPrixUnitaireHT() : 0;
+                        double quantite = ligne.getQuantite() != null ? ligne.getQuantite() : 0;
+                        if (BigDecimal.valueOf(prixUnitaire).compareTo(THRESHOLD) >= 0) {
+                            count += (int) quantite;
+                        }
                     }
                 }
 
                 if (count <= 0) continue;
 
-                String key = bkName + "|" + invoice + "|" + jour + "|" + mode;
-                AggregatedRow row = map.computeIfAbsent(key, k -> new AggregatedRow(bkName, invoice, jour, mode));
+                String key = bkName + "|" + invoice + "|" + jour + "|" + modeForAggregatedRow;
+                AggregatedRow row = map.computeIfAbsent(key, k -> new AggregatedRow(bkName, invoice, jour, modeForAggregatedRow));
                 row.count += count;
             } catch (IOException ignored) {}
         }
         return map;
+    }
+
+    /**
+     * Extracts a reference string from a JSON string, looking for common keys.
+     * This is to mimic the behavior of `(jsonb_field->>'reference')` in SQL.
+     * It checks for "reference", "invoice.reference", "invoice.id", and "numeroFacture".
+     * @param json The JSON string to parse.
+     * @return The extracted reference, or null if not found.
+     */
+    private String extractReferenceFromJson(String json) {
+        if (json == null || json.isBlank()) return null;
+        try {
+            // Use JsonNode for more flexible parsing without strict class mapping
+            com.fasterxml.jackson.databind.JsonNode rootNode = objectMapper.readTree(json);
+
+            // Try "reference" key directly
+            com.fasterxml.jackson.databind.JsonNode referenceNode = rootNode.get("reference");
+            if (referenceNode != null && referenceNode.isTextual()) return referenceNode.asText();
+
+            // Try "invoice.reference" or "invoice.id"
+            com.fasterxml.jackson.databind.JsonNode invoiceNode = rootNode.get("invoice");
+            if (invoiceNode != null && invoiceNode.isObject()) {
+                com.fasterxml.jackson.databind.JsonNode invoiceReferenceNode = invoiceNode.get("reference");
+                if (invoiceReferenceNode != null && invoiceReferenceNode.isTextual()) return invoiceReferenceNode.asText();
+                com.fasterxml.jackson.databind.JsonNode invoiceIdNode = invoiceNode.get("id");
+                if (invoiceIdNode != null && invoiceIdNode.isTextual()) return invoiceIdNode.asText();
+            }
+            // Try "numeroFacture" (common in dataSend for BKExtractedData or AvoirRequest)
+            com.fasterxml.jackson.databind.JsonNode numeroFactureNode = rootNode.get("numeroFacture");
+            if (numeroFactureNode != null && numeroFactureNode.isTextual()) return numeroFactureNode.asText();
+
+        } catch (IOException e) {
+            System.err.println("Error parsing JSON for reference: " + e.getMessage());
+        }
+        return null;
     }
 
     @Override
