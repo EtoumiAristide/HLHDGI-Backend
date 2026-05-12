@@ -7,6 +7,7 @@ public class LigneProduitPayload {
     private String date;
     private String produit;
     private int quantite;
+    private String unite;
     private double prixUnitaireHT;
     private double montantHT;
 }

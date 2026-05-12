@@ -9,7 +9,7 @@ import org.springframework.web.bind.annotation.*;
 @RestController
 @RequestMapping("/api/v1/dashboard")
 @RequiredArgsConstructor
-public class DashboardController {
+public class DashboardApi {
 
     private final DashboardService dashboardService;
 

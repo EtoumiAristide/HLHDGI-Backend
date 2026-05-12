@@ -3,12 +3,14 @@ package com.elpandor.hlh.modules.hlh.repository;
 import com.elpandor.hlh.modules.hlh.model.Facture;
 import com.elpandor.hlh.modules.stats.model.DashboardMonthly;
 import com.elpandor.hlh.modules.stats.model.DashboardStats;
+import com.elpandor.hlh.modules.stats.model.FactureTimbre;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
+import java.time.LocalDate;
 import java.util.List;
 
 public interface FactureRepository extends JpaRepository<Facture, Integer> {
@@ -144,4 +146,201 @@ public interface FactureRepository extends JpaRepository<Facture, Integer> {
             @Param("pdvId") long pdvId,
             @Param("client") String client
     );
+
+    @Query(value = """
+            WITH factures_sans_avoir AS (
+                SELECT
+                    fac.*,
+                    etb.nom as nom_etablissement,
+                    pv.nom as nom_point_vente,
+                    fac.date_facture::date as jour_ca,
+                    DATE_TRUNC('month', fac.date_facture) as mois,
+                    TO_CHAR(fac.date_facture, 'MM YYYY') as nom_mois,
+                    fac.nom_client as nom_client_fac,
+                    (fac.reponse_fne::jsonb)->>'reference' as reference_fne
+                FROM factures_hlh fac
+                INNER JOIN point_ventes pv ON pv.id = fac.point_vente_id
+                INNER JOIN etablissements etb ON etb.id = pv.etablissement_id
+                INNER JOIN organisations org ON org.id = etb.organisation_id
+                WHERE org.num_cc = :numcc
+                AND fac.type_facture = 0
+                AND fac.date_facture >= :dateDebut
+                AND fac.date_facture < :dateFin
+                AND NOT EXISTS (
+                    SELECT 1 FROM factures_hlh avoir
+                    WHERE avoir.type_facture = 2
+                    AND (avoir.data_send_request::jsonb)->>'reference' = (fac.reponse_fne::jsonb)->>'reference'
+                )
+            ),
+            nb_ticket_par_facture AS (
+                SELECT
+                    nom_mois as mois,
+                    nom_etablissement as bkName,
+                    reference_fne as nFacture,
+                    jour_ca as jourCa,
+                    CASE
+                        WHEN UPPER(fac.nom_client_fac) LIKE '%CASH%' THEN 'CASH'
+                        WHEN UPPER(fac.nom_client_fac) LIKE '%GLOVO%' THEN 'HD GLOVO'
+                    END as moyenDePaiement,
+                    COALESCE(SUM(CASE
+                        WHEN (item->>'prixUnitaireHT')::numeric >= 5000
+                        THEN (item->>'quantite')::integer
+                        ELSE 0
+                    END), 0) as nbreTicket5000
+                FROM factures_sans_avoir fac
+                CROSS JOIN jsonb_array_elements((fac.data_send_request::jsonb)->'lignes') AS item
+                WHERE UPPER(fac.nom_client_fac) LIKE '%CASH%'
+                   OR UPPER(fac.nom_client_fac) LIKE '%GLOVO%'
+                GROUP BY
+                    nom_mois,
+                    nom_etablissement,
+                    reference_fne,
+                    jour_ca,
+                    fac.nom_client_fac
+            )
+            SELECT
+                mois,
+                bkName,
+                nFacture,
+                jourCa,
+                moyenDePaiement,
+                nbreTicket5000,
+                100 as montantTimbre,
+                (COALESCE(nbreTicket5000, 0) * 100)::numeric as total
+            FROM nb_ticket_par_facture
+            WHERE nbreTicket5000 > 0
+            ORDER BY
+                mois,
+                bkName,
+                moyenDePaiement,
+                jourCa
+            """,
+            countQuery = """
+                        WITH factures_sans_avoir AS (
+                            SELECT
+                                fac.*,
+                                etb.nom as nom_etablissement,
+                                pv.nom as nom_point_vente,
+                                fac.date_facture::date as jour_ca,
+                                DATE_TRUNC('month', fac.date_facture) as mois,
+                                TO_CHAR(fac.date_facture, 'MM YYYY') as nom_mois,
+                                fac.nom_client as nom_client_fac,
+                                (fac.reponse_fne::jsonb)->>'reference' as reference_fne
+                            FROM factures_hlh fac
+                            INNER JOIN point_ventes pv ON pv.id = fac.point_vente_id
+                            INNER JOIN etablissements etb ON etb.id = pv.etablissement_id
+                            INNER JOIN organisations org ON org.id = etb.organisation_id
+                            WHERE org.num_cc = :numcc
+                            AND fac.type_facture = 0
+                            AND fac.date_facture >= :dateDebut
+                            AND fac.date_facture < :dateFin
+                            AND NOT EXISTS (
+                                SELECT 1 FROM factures_hlh avoir
+                                WHERE avoir.type_facture = 2
+                                AND (avoir.data_send_request::jsonb)->>'reference' = (fac.reponse_fne::jsonb)->>'reference'
+                            )
+                        ),
+                        nb_ticket_par_facture AS (
+                            SELECT
+                                nom_mois as mois,
+                                nom_etablissement as bkName,
+                                reference_fne as nFacture,
+                                jour_ca as jourCa,
+                                CASE
+                                    WHEN UPPER(fac.nom_client_fac) LIKE '%CASH%' THEN 'CASH'
+                                    WHEN UPPER(fac.nom_client_fac) LIKE '%GLOVO%' THEN 'HD GLOVO'
+                                END as moyenDePaiement,
+                                COALESCE(SUM(CASE
+                                    WHEN (item->>'prixUnitaireHT')::numeric >= 5000
+                                    THEN (item->>'quantite')::integer
+                                    ELSE 0
+                                END), 0) as nbreTicket5000
+                            FROM factures_sans_avoir fac
+                            CROSS JOIN jsonb_array_elements((fac.data_send_request::jsonb)->'lignes') AS item
+                            WHERE UPPER(fac.nom_client_fac) LIKE '%CASH%'
+                               OR UPPER(fac.nom_client_fac) LIKE '%GLOVO%'
+                            GROUP BY
+                                nom_mois,
+                                nom_etablissement,
+                                reference_fne,
+                                jour_ca,
+                                fac.nom_client_fac
+                        )
+                        SELECT COUNT(*)
+                        FROM nb_ticket_par_facture
+                        WHERE nbreTicket5000 > 0
+                    """,
+            nativeQuery = true)
+    public Page<FactureTimbre> getFactureTimbrePaginate(Pageable pageable, @Param("numcc") String numcc, @Param("dateDebut") LocalDate dateDebut, @Param("dateFin") LocalDate dateFin);
+
+    @Query(value = """
+            WITH factures_sans_avoir AS (
+                SELECT
+                    fac.*,
+                    etb.nom as nom_etablissement,
+                    pv.nom as nom_point_vente,
+                    fac.date_facture::date as jour_ca,
+                    DATE_TRUNC('month', fac.date_facture) as mois,
+                    TO_CHAR(fac.date_facture, 'MM YYYY') as nom_mois,
+                    fac.nom_client as nom_client_fac,
+                    (fac.reponse_fne::jsonb)->>'reference' as reference_fne
+                FROM factures_hlh fac
+                INNER JOIN point_ventes pv ON pv.id = fac.point_vente_id
+                INNER JOIN etablissements etb ON etb.id = pv.etablissement_id
+                INNER JOIN organisations org ON org.id = etb.organisation_id
+                WHERE org.num_cc = :numcc
+                AND fac.type_facture = 0
+                AND fac.date_facture >= :dateDebut
+                AND fac.date_facture < :dateFin
+                AND NOT EXISTS (
+                    SELECT 1 FROM factures_hlh avoir
+                    WHERE avoir.type_facture = 2
+                    AND (avoir.data_send_request::jsonb)->>'reference' = (fac.reponse_fne::jsonb)->>'reference'
+                )
+            ),
+            nb_ticket_par_facture AS (
+                SELECT
+                    nom_mois as mois,
+                    nom_etablissement as bkName,
+                    reference_fne as nFacture,
+                    jour_ca as jourCa,
+                    CASE
+                        WHEN UPPER(fac.nom_client_fac) LIKE '%CASH%' THEN 'CASH'
+                        WHEN UPPER(fac.nom_client_fac) LIKE '%GLOVO%' THEN 'HD GLOVO'
+                    END as moyenDePaiement,
+                    COALESCE(SUM(CASE
+                        WHEN (item->>'prixUnitaireHT')::numeric >= 5000
+                        THEN (item->>'quantite')::integer
+                        ELSE 0
+                    END), 0) as nbreTicket5000
+                FROM factures_sans_avoir fac
+                CROSS JOIN jsonb_array_elements((fac.data_send_request::jsonb)->'lignes') AS item
+                WHERE UPPER(fac.nom_client_fac) LIKE '%CASH%'
+                   OR UPPER(fac.nom_client_fac) LIKE '%GLOVO%'
+                GROUP BY
+                    nom_mois,
+                    nom_etablissement,
+                    reference_fne,
+                    jour_ca,
+                    fac.nom_client_fac
+            )
+            SELECT
+                mois,
+                bkName,
+                nFacture,
+                jourCa,
+                moyenDePaiement,
+                nbreTicket5000,
+                100 as montantTimbre,
+                (COALESCE(nbreTicket5000, 0) * 100)::numeric as total
+            FROM nb_ticket_par_facture
+            WHERE nbreTicket5000 > 0
+            ORDER BY
+                mois,
+                bkName,
+                moyenDePaiement,
+                jourCa
+            """,
+            nativeQuery = true)
+    public List<FactureTimbre> getFactureTimbre(@Param("numcc") String numcc, @Param("dateDebut") LocalDate dateDebut, @Param("dateFin") LocalDate dateFin);
 }

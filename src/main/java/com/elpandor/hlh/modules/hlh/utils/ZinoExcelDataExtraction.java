@@ -13,14 +13,13 @@ public class ZinoExcelDataExtraction {
 
     public List<ZinoExtractedData> extractFacture(InputStream is, Integer indexLectureFichier) throws IOException {
         List<ZinoExtractedData> importedRecords = new ArrayList<>();
-
         try (Workbook workbook = new XSSFWorkbook(is)) {
             Sheet sheet = workbook.getSheetAt(indexLectureFichier);
 
             for (int i = 1; i <= sheet.getLastRowNum(); i++) {
                 Row row = sheet.getRow(i);
                 if (row != null && row.getCell(0) != null) {
-                    if (row.getCell(2).getCellType() != CellType.FORMULA && getCellStringValue(row.getCell(2)) != null && !getCellStringValue(row.getCell(2)).isEmpty()) {
+                    if (row.getCell(2) != null && row.getCell(2).getCellType() != CellType.FORMULA && getCellStringValue(row.getCell(2)) != null && !getCellStringValue(row.getCell(2)).isEmpty()) {
                         ZinoExtractedData zinoExtractedData = new ZinoExtractedData();
 
                         // Lecture des cellules
