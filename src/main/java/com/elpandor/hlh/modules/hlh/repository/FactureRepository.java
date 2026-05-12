@@ -10,6 +10,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 import java.time.Instant;
+import java.time.LocalDate;
 import java.util.List;
 
 public interface FactureRepository extends JpaRepository<Facture, Integer> {
@@ -19,6 +20,9 @@ public interface FactureRepository extends JpaRepository<Facture, Integer> {
 
     @Query("select f from Facture f where f.dataSend is not null and f.dateCreation >= :from and f.dateCreation < :to")
     List<Facture> findBkFacturesByDateCreationBetween(@Param("from") Instant from, @Param("to") Instant to);
+
+    // Rechercher les factures par dateFacture (date du ticket) pour filtrer exactement la période demandée
+    List<Facture> findByDateFactureBetween(LocalDate from, LocalDate to);
 
     @Query(value = """
                 SELECT

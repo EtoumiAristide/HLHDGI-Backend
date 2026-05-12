@@ -10,10 +10,7 @@ import com.elpandor.hlh.modules.hlh.model.dto.payload.bk.Payment;
 import com.elpandor.hlh.modules.hlh.model.dto.payload.bk.Payment.PaymentType;
 import com.elpandor.hlh.modules.hlh.repository.FactureRepository;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import org.apache.poi.ss.usermodel.Cell;
-import org.apache.poi.ss.usermodel.Row;
-import org.apache.poi.ss.usermodel.Sheet;
-import org.apache.poi.ss.usermodel.Workbook;
+import org.apache.poi.ss.usermodel.*;
 import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 import org.springframework.stereotype.Service;
 
@@ -97,24 +94,98 @@ public class BurgerKingTimbreServiceImpl implements BurgerKingTimbreService {
         return details;
     }
     public BkTimbreMonthlyReport buildReport(BkTimbreRequest request) {
-        List<BkTimbreDetail> details = calculateDetails(request);
-        BigDecimal totalStampDuty = details.stream()
-                .map(BkTimbreDetail::getStampDuty)
-                .filter(Objects::nonNull)
-                .reduce(BigDecimal.ZERO, BigDecimal::add);
+        // Construire un rapport agrégé correspondant au template client
+        java.util.Map<String, AggregatedRow> map = getAggregatedData(request != null ? request.getPeriod() : null);
 
-        long eligibleTransactions = details.stream().filter(BkTimbreDetail::isEligible).count();
-        long totalTransactions = details.size();
+        List<BkTimbreDetail> details = new ArrayList<>();
+        BigDecimal totalStampDuty = BigDecimal.ZERO;
+        int sumCount = 0;
+
+        for (AggregatedRow r : map.values()) {
+            BigDecimal totalRow = BigDecimal.valueOf(r.count).multiply(STAMP_DUTY_AMOUNT);
+            totalStampDuty = totalStampDuty.add(totalRow);
+            sumCount += r.count;
+
+            // Mapper l'agrégation dans BkTimbreDetail pour l'affichage front
+            BkTimbreDetail detail = BkTimbreDetail.builder()
+                    .transactionId(r.bkName) // BK NAME
+                    .checkNumber(r.invoice) // N°FACTURE
+                    .paymentType(r.paymentType) // MOYEN DE PAIEMENT
+                    .amount(BigDecimal.valueOf(r.count)) // NBRE TICKET > 5000 stocké dans amount
+                    .stampDuty(totalRow) // TOTAL stocké dans stampDuty
+                    .eligible(false)
+                    .eligibilityReason("")
+                    .period(request != null && request.getPeriod() != null ? request.getPeriod() : null)
+                    .build();
+            // utiliser period field pour stockage de JOUR CA si besoin dans l'UI
+            detail.setPeriod(r.jour);
+            details.add(detail);
+        }
 
         return BkTimbreMonthlyReport.builder()
                 .period(request != null && request.getPeriod() != null ? request.getPeriod() : "unknown")
                 .totalStampDuty(totalStampDuty)
                 .threshold(THRESHOLD)
                 .fixedStampDuty(STAMP_DUTY_AMOUNT)
-                .totalTransactions(totalTransactions)
-                .eligibleTransactions(eligibleTransactions)
+                .totalTransactions(sumCount)
+                .eligibleTransactions(sumCount)
                 .details(details)
                 .build();
+    }
+
+    private boolean isBurgerKing(String value) {
+        if (value == null) return false;
+        String v = value.toLowerCase();
+        return v.contains("burger") || v.contains("burger king") || v.contains("bk");
+    }
+
+    private boolean isCashOrGlovo(String mode) {
+        if (mode == null) return false;
+        String m = mode.toLowerCase();
+        return m.contains("cash") || m.contains("glovo") || m.contains("espèce") || m.contains("espece");
+    }
+
+    private java.util.Map<String, AggregatedRow> getAggregatedData(String periodStr) {
+        java.util.Map<String, AggregatedRow> map = new java.util.LinkedHashMap<>();
+        YearMonth period = parsePeriod(periodStr);
+        if (period == null) return map;
+
+        java.time.LocalDate startDate = period.atDay(1);
+        java.time.LocalDate endDate = period.atEndOfMonth();
+        List<Facture> factures = factureRepository.findByDateFactureBetween(startDate, endDate);
+
+        for (Facture facture : factures) {
+            String json = facture.getDataSend();
+            if (json == null || json.isBlank()) continue;
+            try {
+                BKExtractedData extracted = objectMapper.readValue(json, BKExtractedData.class);
+                if (!isBurgerKing(extracted.getEntreprise()) && !isBurgerKing(extracted.getPointVente())) continue;
+
+                String bkName = safe(extracted.getPointVente() != null ? extracted.getPointVente() : extracted.getEntreprise());
+                String invoice = safe(extracted.getNumeroFacture());
+                String jour = facture.getDateFacture() != null ? facture.getDateFacture().toString() : safe(extracted.getDateFacture());
+                String mode = extracted.getTotauxPayload() != null && extracted.getTotauxPayload().getModePaiement() != null
+                        ? extracted.getTotauxPayload().getModePaiement() : safe(extracted.getModePaiement());
+
+                // RG1: Filtrage par mode de paiement
+                if (!isCashOrGlovo(mode)) continue;
+
+                // RG1: Filtrage par montant TTC de la facture (Ticket)
+                int count = 0;
+                if (extracted.getTotauxPayload() != null && extracted.getTotauxPayload().getTtc() != null) {
+                    if (BigDecimal.valueOf(extracted.getTotauxPayload().getTtc()).compareTo(THRESHOLD) >= 0) {
+                        count = 1;
+                    }
+                }
+
+                if (count <= 0) continue;
+
+                String key = bkName + "|" + invoice + "|" + jour + "|" + mode;
+                AggregatedRow row = map.computeIfAbsent(key, k -> new AggregatedRow(bkName, invoice, jour, mode));
+                row.count += count;
+            } catch (IOException ignored) {}
+        }
+        return map;
     }
 
     @Override
@@ -141,22 +212,53 @@ public class BurgerKingTimbreServiceImpl implements BurgerKingTimbreService {
         try (Workbook workbook = new XSSFWorkbook(); ByteArrayOutputStream outputStream = new ByteArrayOutputStream()) {
             Sheet sheet = workbook.createSheet("BK Timbre");
 
+            // --- Définition des Styles ---
+            Font headerFont = workbook.createFont();
+            headerFont.setBold(true);
+            headerFont.setColor(IndexedColors.WHITE.getIndex());
+
+            CellStyle headerStyle = workbook.createCellStyle();
+            headerStyle.setFont(headerFont);
+            headerStyle.setFillForegroundColor(IndexedColors.DARK_BLUE.getIndex());
+            headerStyle.setFillPattern(FillPatternType.SOLID_FOREGROUND);
+            headerStyle.setAlignment(HorizontalAlignment.CENTER);
+            headerStyle.setBorderBottom(BorderStyle.THIN);
+            headerStyle.setBorderTop(BorderStyle.THIN);
+            headerStyle.setBorderRight(BorderStyle.THIN);
+            headerStyle.setBorderLeft(BorderStyle.THIN);
+
+            CellStyle dataStyle = workbook.createCellStyle();
+            dataStyle.setBorderBottom(BorderStyle.THIN);
+            dataStyle.setBorderTop(BorderStyle.THIN);
+            dataStyle.setBorderRight(BorderStyle.THIN);
+            dataStyle.setBorderLeft(BorderStyle.THIN);
+            dataStyle.setVerticalAlignment(VerticalAlignment.CENTER);
+
+            CellStyle numericStyle = workbook.createCellStyle();
+            numericStyle.cloneStyleFrom(dataStyle);
+            numericStyle.setDataFormat(workbook.createDataFormat().getFormat("#,##0"));
+            numericStyle.setAlignment(HorizontalAlignment.RIGHT);
+
+            // --- Entête ---
             Row headerRow = sheet.createRow(0);
+            headerRow.setHeightInPoints(20);
             String[] headers = {"Transaction", "Type paiement", "Montant", "Timbre", "Éligible", "Raison"};
             for (int i = 0; i < headers.length; i++) {
                 Cell cell = headerRow.createCell(i);
                 cell.setCellValue(headers[i]);
+                cell.setCellStyle(headerStyle);
             }
 
+            // --- Données ---
             int rowIndex = 1;
             for (BkTimbreDetail detail : details) {
                 Row row = sheet.createRow(rowIndex++);
-                row.createCell(0).setCellValue(safe(detail.getTransactionId()));
-                row.createCell(1).setCellValue(safe(detail.getPaymentType()));
-                row.createCell(2).setCellValue(detail.getAmount() != null ? detail.getAmount().doubleValue() : 0);
-                row.createCell(3).setCellValue(detail.getStampDuty() != null ? detail.getStampDuty().doubleValue() : 0);
-                row.createCell(4).setCellValue(detail.isEligible() ? "Oui" : "Non");
-                row.createCell(5).setCellValue(safe(detail.getEligibilityReason()));
+                Cell c0 = row.createCell(0); c0.setCellValue(safe(detail.getTransactionId())); c0.setCellStyle(dataStyle);
+                Cell c1 = row.createCell(1); c1.setCellValue(safe(detail.getPaymentType())); c1.setCellStyle(dataStyle);
+                Cell c2 = row.createCell(2); c2.setCellValue(detail.getAmount() != null ? detail.getAmount().doubleValue() : 0); c2.setCellStyle(numericStyle);
+                Cell c3 = row.createCell(3); c3.setCellValue(detail.getStampDuty() != null ? detail.getStampDuty().doubleValue() : 0); c3.setCellStyle(numericStyle);
+                Cell c4 = row.createCell(4); c4.setCellValue(detail.isEligible() ? "Oui" : "Non"); c4.setCellStyle(dataStyle);
+                Cell c5 = row.createCell(5); c5.setCellValue(safe(detail.getEligibilityReason())); c5.setCellStyle(dataStyle);
             }
 
             for (int i = 0; i < headers.length; i++) {
@@ -170,22 +272,159 @@ public class BurgerKingTimbreServiceImpl implements BurgerKingTimbreService {
         }
     }
 
+    /**
+     * Génère un CSV agrégé conforme au template client pour la période fournie dans la requête.
+     * L'agrégation est faite par point de vente / facture / date / moyen de paiement.
+     */
+    public String exportAggregatedCsv(BkTimbreRequest request) {
+        StringBuilder csv = new StringBuilder();
+        String header = "BK NAME;N°FACTURE;JOUR CA;MOYEN DE PAIEMENT;NBRE TICKET > 5000;MONTANT TIMBRE;TOTAL\n";
+        csv.append(header);
+        
+        java.util.Map<String, AggregatedRow> map = getAggregatedData(request != null ? request.getPeriod() : null);
+
+        BigDecimal grandTotal = BigDecimal.ZERO;
+        int sumCount = 0;
+        for (AggregatedRow r : map.values()) {
+            // montant per-ticket (constant) and total per row = count * montantPerTicket
+            BigDecimal montantPerTicket = STAMP_DUTY_AMOUNT;
+            BigDecimal totalRow = BigDecimal.valueOf(r.count).multiply(montantPerTicket);
+            csv.append(r.bkName).append(";")
+                    .append(r.invoice).append(";")
+                    .append(r.jour).append(";")
+                    .append(r.paymentType).append(";")
+                    .append(r.count).append(";")
+                    .append(montantPerTicket).append(";")
+                    .append(totalRow).append("\n");
+            grandTotal = grandTotal.add(totalRow);
+            sumCount += r.count;
+        }
+
+        // Ligne TOTAL: 'TOTAL' in BK NAME, empty invoice/jour/mode, then sumCount, unit stamp, grandTotal
+        csv.append("TOTAL;;; ;");
+        csv.append(sumCount).append(";").append(STAMP_DUTY_AMOUNT).append(";").append(grandTotal).append("\n");
+        return csv.toString();
+    }
+
+    /**
+     * Génère un fichier Excel agrégé (bytes) conforme au template client pour la période fournie.
+     */
+    public byte[] exportAggregatedExcel(BkTimbreRequest request) {
+        String[] headers = {"BK NAME", "N°FACTURE", "JOUR CA", "MOYEN DE PAIEMENT", "NBRE TICKET > 5000", "MONTANT TIMBRE", "TOTAL"};
+        java.util.Map<String, AggregatedRow> map = getAggregatedData(request != null ? request.getPeriod() : null);
+
+        try (Workbook workbook = new XSSFWorkbook(); ByteArrayOutputStream outputStream = new ByteArrayOutputStream()) {
+            Sheet sheet = workbook.createSheet("BK Timbre Agrégé");
+
+            // --- Styles ---
+            Font headerFont = workbook.createFont();
+            headerFont.setBold(true);
+            headerFont.setColor(IndexedColors.WHITE.getIndex());
+            headerFont.setFontHeightInPoints((short) 11);
+
+            CellStyle headerStyle = workbook.createCellStyle();
+            headerStyle.setFont(headerFont);
+            headerStyle.setFillForegroundColor(IndexedColors.DARK_BLUE.getIndex());
+            headerStyle.setFillPattern(FillPatternType.SOLID_FOREGROUND);
+            headerStyle.setAlignment(HorizontalAlignment.CENTER);
+            headerStyle.setVerticalAlignment(VerticalAlignment.CENTER);
+            headerStyle.setBorderBottom(BorderStyle.THIN);
+            headerStyle.setBorderTop(BorderStyle.THIN);
+            headerStyle.setBorderRight(BorderStyle.THIN);
+            headerStyle.setBorderLeft(BorderStyle.THIN);
+
+            CellStyle dataStyle = workbook.createCellStyle();
+            dataStyle.setBorderBottom(BorderStyle.THIN);
+            dataStyle.setBorderTop(BorderStyle.THIN);
+            dataStyle.setBorderRight(BorderStyle.THIN);
+            dataStyle.setBorderLeft(BorderStyle.THIN);
+            dataStyle.setVerticalAlignment(VerticalAlignment.CENTER);
+
+            CellStyle numericStyle = workbook.createCellStyle();
+            numericStyle.cloneStyleFrom(dataStyle);
+            numericStyle.setDataFormat(workbook.createDataFormat().getFormat("#,##0"));
+            numericStyle.setAlignment(HorizontalAlignment.RIGHT);
+
+            Font totalFont = workbook.createFont();
+            totalFont.setBold(true);
+            CellStyle totalStyle = workbook.createCellStyle();
+            totalStyle.cloneStyleFrom(dataStyle);
+            totalStyle.setFont(totalFont);
+            totalStyle.setFillForegroundColor(IndexedColors.LIGHT_TURQUOISE.getIndex());
+            totalStyle.setFillPattern(FillPatternType.SOLID_FOREGROUND);
+
+            CellStyle totalNumericStyle = workbook.createCellStyle();
+            totalNumericStyle.cloneStyleFrom(numericStyle);
+            totalNumericStyle.setFont(totalFont);
+            totalNumericStyle.setFillForegroundColor(IndexedColors.LIGHT_TURQUOISE.getIndex());
+            totalNumericStyle.setFillPattern(FillPatternType.SOLID_FOREGROUND);
+
+            // --- Entête ---
+            Row headerRow = sheet.createRow(0);
+            headerRow.setHeightInPoints(25);
+            for (int i = 0; i < headers.length; i++) {
+                Cell cell = headerRow.createCell(i);
+                cell.setCellValue(headers[i]);
+                cell.setCellStyle(headerStyle);
+            }
+
+            // --- Données ---
+            int rowIndex = 1;
+            BigDecimal grandTotal = BigDecimal.ZERO;
+            int sumCount = 0;
+            for (AggregatedRow r : map.values()) {
+                BigDecimal montantPerTicket = STAMP_DUTY_AMOUNT;
+                BigDecimal totalRow = BigDecimal.valueOf(r.count).multiply(montantPerTicket);
+                Row row = sheet.createRow(rowIndex++);
+                Cell c0 = row.createCell(0); c0.setCellValue(r.bkName); c0.setCellStyle(dataStyle);
+                Cell c1 = row.createCell(1); c1.setCellValue(r.invoice); c1.setCellStyle(dataStyle);
+                Cell c2 = row.createCell(2); c2.setCellValue(r.jour); c2.setCellStyle(dataStyle);
+                Cell c3 = row.createCell(3); c3.setCellValue(r.paymentType); c3.setCellStyle(dataStyle);
+                Cell c4 = row.createCell(4); c4.setCellValue(r.count); c4.setCellStyle(numericStyle);
+                Cell c5 = row.createCell(5); c5.setCellValue(montantPerTicket.doubleValue()); c5.setCellStyle(numericStyle);
+                Cell c6 = row.createCell(6); c6.setCellValue(totalRow.doubleValue()); c6.setCellStyle(numericStyle);
+
+                grandTotal = grandTotal.add(totalRow);
+                sumCount += r.count;
+            }
+
+            // --- Ligne Total Final ---
+            Row totalRow = sheet.createRow(rowIndex);
+            totalRow.setHeightInPoints(20);
+            Cell t0 = totalRow.createCell(0); t0.setCellValue("TOTAL GÉNÉRAL"); t0.setCellStyle(totalStyle);
+            for (int i = 1; i <= 3; i++) {
+                totalRow.createCell(i).setCellStyle(totalStyle);
+            }
+            Cell t4 = totalRow.createCell(4); t4.setCellValue(sumCount); t4.setCellStyle(totalNumericStyle);
+            Cell t5 = totalRow.createCell(5); t5.setCellValue(STAMP_DUTY_AMOUNT.doubleValue()); t5.setCellStyle(totalNumericStyle);
+            Cell t6 = totalRow.createCell(6); t6.setCellValue(grandTotal.doubleValue()); t6.setCellStyle(totalNumericStyle);
+
+            for (int i = 0; i < headers.length; i++) sheet.autoSizeColumn(i);
+
+            workbook.write(outputStream);
+            return outputStream.toByteArray();
+        } catch (IOException e) {
+            throw new RuntimeException("Erreur lors de la génération de l'export Excel BK agrégé", e);
+        }
+    }
+
     private List<Payment> loadPaymentsFromDatabase(BkTimbreRequest request) {
         if (request == null || request.getPeriod() == null) {
             return Collections.emptyList();
         }
 
-        YearMonth period = parsePeriod(request.getPeriod());
-        if (period == null) {
+        java.util.Map<String, AggregatedRow> aggregatedData = getAggregatedData(request.getPeriod());
+        if (aggregatedData.isEmpty()) {
             return Collections.emptyList();
         }
 
-        Instant start = period.atDay(1).atStartOfDay(ZoneOffset.UTC).toInstant();
-        Instant end = period.plusMonths(1).atDay(1).atStartOfDay(ZoneOffset.UTC).toInstant();
+        YearMonth period = parsePeriod(request.getPeriod());
+        java.time.LocalDate startDate = period.atDay(1);
+        java.time.LocalDate endDate = period.atEndOfMonth();
 
-        System.out.println("🔍 BK Debug - Période: " + period + " (du " + start + " au " + end + ")");
+        System.out.println("🔍 BK Debug - Période: " + period + " (du " + startDate + " au " + endDate + ")");
 
-        List<Facture> factures = factureRepository.findBkFacturesByDateCreationBetween(start, end);
+        List<Facture> factures = factureRepository.findByDateFactureBetween(startDate, endDate);
         System.out.println("🔍 BK Debug - Nombre de factures trouvées: " + factures.size());
 
         List<Payment> payments = new ArrayList<>();
@@ -316,5 +555,22 @@ public class BurgerKingTimbreServiceImpl implements BurgerKingTimbreService {
 
     private String safe(String value) {
         return value != null ? value.replaceAll("[\r\n;]", " ") : "";
+    }
+
+    // Classe interne utilitaire pour stocker les lignes agrégées avant export
+    private static class AggregatedRow {
+        String bkName;
+        String invoice;
+        String jour;
+        String paymentType;
+        int count = 0;
+        BigDecimal stampTotal = BigDecimal.ZERO;
+
+        AggregatedRow(String bkName, String invoice, String jour, String paymentType) {
+            this.bkName = bkName;
+            this.invoice = invoice;
+            this.jour = jour;
+            this.paymentType = paymentType;
+        }
     }
 }

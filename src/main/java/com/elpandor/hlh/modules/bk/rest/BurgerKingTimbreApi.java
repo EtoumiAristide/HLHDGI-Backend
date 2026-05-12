@@ -51,7 +51,8 @@ public class BurgerKingTimbreApi {
     @PostMapping(path = "/export/csv", produces = MediaType.TEXT_PLAIN_VALUE)
     public ResponseEntity<String> exportCsv(@RequestBody BkTimbreRequestDto requestDto) {
         BkTimbreRequest request = bkTimbreMapper.toEntity(requestDto);
-        String csv = burgerKingTimbreService.exportCsv(burgerKingTimbreService.calculateDetails(request));
+        // Utiliser l'export agrégé conforme au template client (remplacement demandé)
+        String csv = burgerKingTimbreService.exportAggregatedCsv(request);
         return ResponseEntity.ok()
                 .header("Content-Disposition", "attachment; filename=BK_Timbre_Report.csv")
                 .contentType(MediaType.TEXT_PLAIN)
@@ -61,7 +62,8 @@ public class BurgerKingTimbreApi {
     @PostMapping(path = "/export/excel", produces = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
     public ResponseEntity<byte[]> exportExcel(@RequestBody BkTimbreRequestDto requestDto) {
         BkTimbreRequest request = bkTimbreMapper.toEntity(requestDto);
-        byte[] excel = burgerKingTimbreService.exportExcel(burgerKingTimbreService.calculateDetails(request));
+        // Utiliser l'export agrégé conforme au template client (remplacement demandé)
+        byte[] excel = burgerKingTimbreService.exportAggregatedExcel(request);
         return ResponseEntity.ok()
                 .header("Content-Disposition", "attachment; filename=BK_Timbre_Report.xlsx")
                 .contentType(MediaType.parseMediaType("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"))

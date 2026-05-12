@@ -14,4 +14,9 @@ public interface BurgerKingTimbreService {
     String exportCsv(List<BkTimbreDetail> details);
 
     byte[] exportExcel(List<BkTimbreDetail> details);
+
+    // Nouveaux exports agrégés conformes au template client
+    String exportAggregatedCsv(BkTimbreRequest request);
+
+    byte[] exportAggregatedExcel(BkTimbreRequest request);
 }
