@@ -196,9 +196,9 @@ public class FactureApi {
     public ResponseEntity<Map<String, Object>> getAll() {
         log.trace("Starting processing getAll request!");
 
-        List<FactureDto> graviteDtos = factureService.getAll();
-        if (graviteDtos != null && !graviteDtos.isEmpty()) {
-            return Utilities.createSuccessResponse(HttpStatus.OK, graviteDtos, "Liste des types carte");
+        List<FactureDto> factureDtos = factureService.getAll();
+        if (factureDtos != null && !factureDtos.isEmpty()) {
+            return Utilities.createSuccessResponse(HttpStatus.OK, factureDtos, "Liste des types carte");
         }
 
         log.info("No element found while hitting getAll");
@@ -1060,12 +1060,12 @@ public class FactureApi {
             });
 
             LigneProduitPayload ligneProduitCC = new LigneProduitPayload();
-            ligneProduitCC.setDate(factureCC.getDateFacture());
-            ligneProduitCC.setProduit("Ventes en espèce");
+            ligneProduitCC.setDate(factureCash.getDateFacture());
+            ligneProduitCC.setProduit("Ventes via carte bancaire");
             ligneProduitCC.setMontantHT(totalCC.get());
             ligneProduitCC.setQuantite(nbCC.get());
             LigneProduitPayload ligneProduitCC2 = new LigneProduitPayload();
-            ligneProduitCC2.setDate(factureCC.getDateFacture());
+            ligneProduitCC2.setDate(factureCash.getDateFacture());
             ligneProduitCC2.setProduit("Ventes via carte bancaire");
             ligneProduitCC2.setMontantHT(totalCC2.get());
             ligneProduitCC2.setQuantite(nbCC2.get());
@@ -1100,6 +1100,7 @@ public class FactureApi {
             factureCC.setLignes(ligneProduitsCC);
             factureCC.setClientPayload(clientCC);
             factureCC.setTotauxPayload(totauxPayloadCC);
+            factureCC.setDateFacture(factureCash.getDateFacture());
         }
 
         if (bkExtratedData2List.containsKey("HD GLOVO")) {
@@ -1125,12 +1126,12 @@ public class FactureApi {
             });
 
             LigneProduitPayload ligneProduitGlovo = new LigneProduitPayload();
-            ligneProduitGlovo.setDate(factureGlovo.getDateFacture());
+            ligneProduitGlovo.setDate(factureCash.getDateFacture());
             ligneProduitGlovo.setProduit("Ventes via Glovo");
             ligneProduitGlovo.setMontantHT(totalGlovo.get());
             ligneProduitGlovo.setQuantite(nbGlovo.get());
             LigneProduitPayload ligneProduitGlovo2 = new LigneProduitPayload();
-            ligneProduitGlovo2.setDate(factureGlovo.getDateFacture());
+            ligneProduitGlovo2.setDate(factureCash.getDateFacture());
             ligneProduitGlovo2.setProduit("Ventes via Glovo");
             ligneProduitGlovo2.setMontantHT(totalGlovo2.get());
             ligneProduitGlovo2.setQuantite(nbGlovo2.get());
@@ -1165,6 +1166,7 @@ public class FactureApi {
             factureGlovo.setLignes(ligneProduitsGlovo);
             factureGlovo.setClientPayload(clientGlovo);
             factureGlovo.setTotauxPayload(totauxPayloadGlovo);
+            factureGlovo.setDateFacture(factureCash.getDateFacture());
         }
 
         if (bkExtratedData2List.containsKey("WAVE")) {
@@ -1190,12 +1192,12 @@ public class FactureApi {
             });
 
             LigneProduitPayload ligneProduitWave = new LigneProduitPayload();
-            ligneProduitWave.setDate(factureWave.getDateFacture());
+            ligneProduitWave.setDate(factureCash.getDateFacture());
             ligneProduitWave.setProduit("Ventes via wave");
             ligneProduitWave.setMontantHT(totalWave.get());
             ligneProduitWave.setQuantite(nbWave.get());
             LigneProduitPayload ligneProduitWave2 = new LigneProduitPayload();
-            ligneProduitWave2.setDate(factureWave.getDateFacture());
+            ligneProduitWave2.setDate(factureCash.getDateFacture());
             ligneProduitWave2.setProduit("Ventes via wave");
             ligneProduitWave2.setMontantHT(totalWave2.get());
             ligneProduitWave2.setQuantite(nbWave2.get());
@@ -1230,6 +1232,7 @@ public class FactureApi {
             factureWave.setLignes(ligneProduitsWave);
             factureWave.setClientPayload(clientWave);
             factureWave.setTotauxPayload(totauxPayloadWave);
+            factureWave.setDateFacture(factureCash.getDateFacture());
         }
 
         //Mise à jour de la facture générale

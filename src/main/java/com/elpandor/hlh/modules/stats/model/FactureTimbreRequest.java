@@ -9,4 +9,5 @@ public class FactureTimbreRequest {
     private String numcc;
     private LocalDate dateDebut;
     private LocalDate dateFin;
+    private String pointDeVente;
 }

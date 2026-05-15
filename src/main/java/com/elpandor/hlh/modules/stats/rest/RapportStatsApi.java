@@ -6,6 +6,7 @@ import com.elpandor.hlh.modules.parametrage.organisations.service.EtablissementS
 import com.elpandor.hlh.modules.parametrage.organisations.service.OrganisationService;
 import com.elpandor.hlh.modules.stats.model.FactureTimbre;
 import com.elpandor.hlh.modules.stats.model.FactureTimbreRequest;
+import com.elpandor.hlh.modules.stats.model.FactureTimbreTotaux;
 import com.elpandor.hlh.modules.stats.service.RapportStatsService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -92,5 +93,28 @@ public class RapportStatsApi {
             e.printStackTrace();
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
         }
+    }
+
+    @PostMapping("/totaux-facture-timbre")
+    public ResponseEntity<Map<String, Object>> getTotauxFactureTimbre(@RequestBody FactureTimbreRequest request,
+                                                                      @AuthenticationPrincipal Jwt jwt) {
+
+        //Recuperation automatique du numero ncc
+        //Recuperation du group
+        List<String> groups = jwt.getClaim("groups");
+        String entreprise = "";
+        EtablissementDto etablissement = null;
+        if (groups != null) {
+            entreprise = groups.get(0);
+            etablissement = etablissementService.findByNom(entreprise);
+        }
+
+        if (etablissement == null)
+            return Utilities.createErrorResponse("Vous n'êtes pas autorisé à utliser cette ressource", List.of(), HttpStatus.UNAUTHORIZED);
+
+        request.setNumcc(etablissement.getOrganisation().getNumcc());
+        Map<String, Map<String, Map<String, FactureTimbreTotaux>>> factureTimbres = rapportStatsService.getFactureTimbreTotaux(request);
+
+        return Utilities.createSuccessResponse(HttpStatus.OK, factureTimbres, "Liste des totaux timbres");
     }
 }

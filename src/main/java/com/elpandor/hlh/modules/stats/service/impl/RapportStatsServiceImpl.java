@@ -3,6 +3,7 @@ package com.elpandor.hlh.modules.stats.service.impl;
 import com.elpandor.hlh.modules.hlh.repository.FactureRepository;
 import com.elpandor.hlh.modules.stats.model.FactureTimbre;
 import com.elpandor.hlh.modules.stats.model.FactureTimbreRequest;
+import com.elpandor.hlh.modules.stats.model.FactureTimbreTotaux;
 import com.elpandor.hlh.modules.stats.service.RapportStatsService;
 import org.apache.poi.ss.usermodel.*;
 import org.apache.poi.xssf.usermodel.XSSFWorkbook;
@@ -15,10 +16,7 @@ import org.springframework.stereotype.Service;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.time.format.DateTimeFormatter;
-import java.util.Comparator;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.stream.Collectors;
 
 @Service
@@ -35,13 +33,13 @@ public class RapportStatsServiceImpl implements RapportStatsService {
 
         Sort sort = Sort.by(Sort.Direction.fromString(direction), sortBy);
         Pageable pageable = PageRequest.of(page, size, sort);
-        return factureRepository.getFactureTimbrePaginate(pageable, request.getNumcc(), request.getDateDebut(), request.getDateFin());
+        return factureRepository.getFactureTimbrePaginate(pageable, request.getNumcc(), request.getDateDebut(), request.getDateFin(), request.getPointDeVente());
     }
 
     @Override
     public byte[] exportTimbreToExcel(FactureTimbreRequest request) throws IOException {
         // Récupérer toutes les données (sans pagination pour l'export)
-        List<FactureTimbre> toutesLesFactures = factureRepository.getFactureTimbre(request.getNumcc(), request.getDateDebut(), request.getDateFin());
+        List<FactureTimbre> toutesLesFactures = factureRepository.getFactureTimbre(request.getNumcc(), request.getDateDebut(), request.getDateFin(), request.getPointDeVente());
 
         // Grouper par mois
         Map<String, List<FactureTimbre>> facturesParMois = toutesLesFactures.stream()
@@ -96,6 +94,28 @@ public class RapportStatsServiceImpl implements RapportStatsService {
             workbook.write(outputStream);
             return outputStream.toByteArray();
         }
+    }
+
+    @Override
+    public Map<String, Map<String, Map<String, FactureTimbreTotaux>>> getFactureTimbreTotaux(FactureTimbreRequest request) {
+        // Récupérer les totaux par mois et mode de paiement
+        List<FactureTimbreTotaux> totaux = factureRepository.getFactureTimbreTotaux(
+                request.getNumcc(),
+                request.getDateDebut(),
+                request.getDateFin(),
+                request.getPointDeVente()
+        );
+
+        // Grouper les totaux par mois puis par point de vente puis par mode de paiement
+        Map<String, Map<String, Map<String, FactureTimbreTotaux>>> totauxParMois = new LinkedHashMap<>();
+        for (FactureTimbreTotaux total : totaux) {
+            totauxParMois
+                    .computeIfAbsent(total.getMois(), k -> new LinkedHashMap<>())
+                    .computeIfAbsent(total.getPointDeVente(), k -> new LinkedHashMap<>())
+                    .put(total.getMoyenDePaiement(), total);
+        }
+
+        return totauxParMois;
     }
 
     private Map<String, CellStyle> createStyles(Workbook workbook) {
