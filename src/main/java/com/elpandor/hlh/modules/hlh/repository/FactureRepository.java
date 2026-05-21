@@ -269,7 +269,7 @@ public interface FactureRepository extends JpaRepository<Facture, Integer> {
                                 jour_ca,
                                 fac.nom_client_fac
                         )
-                        SELECT COUNT(*)
+                        SELECT COUNT(nFacture)
                         FROM nb_ticket_par_facture
                         WHERE nbreTicket5000 > 0
                     """,
