@@ -45,7 +45,7 @@ public interface FactureRepository extends JpaRepository<Facture, Integer> {
                         CASE 
                             WHEN f.type_facture = 2
                             THEN COALESCE(
-                                NULLIF((f.reponse_fne::jsonb) -> 'invoice' ->> 'totalDue', ''),
+                                NULLIF((f.data_send_request::jsonb) -> 'invoice' ->> 'totalDue', ''),
                                 '0'
                             )::numeric
                         END
@@ -95,9 +95,22 @@ public interface FactureRepository extends JpaRepository<Facture, Integer> {
                         EXTRACT(MONTH FROM f.date_creation) AS month_num,
                         f.type_facture,
                         COALESCE(
-                            NULLIF((f.reponse_fne::jsonb) -> 'invoice' ->> 'totalDue', ''),
-                            '0'
-                        )::numeric AS total_due
+                            CASE
+                                WHEN f.type_facture = 2 THEN
+                                    -- Pour les avoirs, on prend depuis data_send_request
+                                    COALESCE(
+                                        NULLIF((f.data_send_request::jsonb) -> 'invoice' ->> 'totalDue', ''),
+                                        '0'
+                                    )::numeric
+                                ELSE
+                                    -- Pour les ventes et achats, on prend depuis reponse_fne
+                                    COALESCE(
+                                        NULLIF((f.reponse_fne::jsonb) -> 'invoice' ->> 'totalDue', ''),
+                                        '0'
+                                    )::numeric
+                            END,
+                            0
+                        ) AS total_due
                     FROM factures_hlh f
                     INNER JOIN point_ventes pv ON f.point_vente_id = pv.id AND pv.isdelete = false
                     INNER JOIN etablissements e ON pv.etablissement_id = e.id AND e.isdelete = false
