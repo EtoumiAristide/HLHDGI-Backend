@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="fr-FR">
+<head>
+    <meta charset="UTF-8"/>
+    <style>
+        body { font-family: Helvetica, Arial, sans-serif; font-size: 10px; color: #222; }
+        .top { display: flex; justify-content: space-between; align-items: flex-start; }
+        .box-emetteur { border: 1px solid #333; border-radius: 6px; padding: 8px 12px; width: 45%; }
+        .box-emetteur p { margin: 2px 0; font-weight: bold; }
+        .logo-entreprise { text-align: right; width: 45%; }
+        .logo-entreprise img { max-height: 70px; }
+        .titre-facture { text-align: right; font-weight: bold; margin-top: 8px; }
+
+        .infos-vendeur { margin-top: 10px; }
+        .infos-vendeur p { margin: 1px 0; }
+
+        .bloc-certification { display: flex; justify-content: flex-end; gap: 20px; margin-top: 6px; }
+        .bloc-certification img { height: 90px; }
+
+        .bloc-client { margin-top: 15px; text-align: right; }
+        .bloc-client p { margin: 1px 0; }
+
+        table { width: 100%; border-collapse: collapse; margin-top: 15px; }
+        th, td { border: 1px solid #333; padding: 4px 6px; text-align: left; font-size: 9px; }
+        th { background: #f2f2f2; }
+        .totaux td:first-child { text-align: right; font-weight: bold; border: none; }
+        .totaux td:last-child { text-align: right; border: 1px solid #333; width: 100px; }
+        .totaux tr td { border-top: 1px solid #333; }
+
+        .resume-titre { margin-top: 15px; font-weight: bold; }
+    </style>
+</head>
+<body>
+
+<div class="top">
+    <div class="box-emetteur">
+        <p th:text="${emetteur.raisonSocial}">ENTREPRISE</p>
+        <p>NCC : <span th:text="${emetteur.numcc}"></span></p>
+        <p>Régime d'imposition : <span th:text="${emetteur.sigle}"></span></p>
+        <p>Centre des impôts : <span th:text="${emetteur.sigle}"></span></p>
+    </div>
+    <div class="logo-entreprise">
+<!--        <img th:src="@{/images/logo-zino.webp}" />-->
+        <div class="titre-facture">Facture de vente N° <span th:text="${reference}"></span></div>
+    </div>
+</div>
+
+<div class="infos-vendeur">
+    <p>RCCM : <span th:text="${emetteur.sigle}"></span></p>
+    <p>Références bancaires : <span th:text="${emetteur.sigle}"></span></p>
+    <p>Établissement : <span th:text="${emetteur.raisonSocial}"></span></p>
+    <p>Adresse : <span th:text="${emetteur.sigle}"></span></p>
+    <p>N° Tel : <span th:text="${emetteur.sigle}"></span></p>
+    <p>Mail : <span th:text="${emetteur.sigle}"></span></p>
+    <p>Nom de PDV : <span th:text="${pointDeVente}"></span></p>
+    <p>Date et heure : <span th:text="${dateHeure}"></span></p>
+    <p>Mode de paiement : <span th:text="${modePaiement}"></span></p>
+    <p th:if="${commercialMessage}" th:text="${commercialMessage}"></p>
+</div>
+
+<div class="bloc-certification">
+    <img th:src="'data:image/png;base64,' + ${qrCodeBase64}" />
+    <!-- Asset officiel DGI à placer vous-même dans /static/images/ -->
+<!--    <img th:src="@{/images/badge-fne-officiel.png}" />-->
+</div>
+
+<div class="bloc-client">
+    <p><b>Client</b></p>
+    <p>Nom : <span th:text="${clientNom}"></span></p>
+    <p>NCC : <span th:text="${clientNcc}"></span></p>
+    <p>Régime d'imposition : <span th:text="${clientRegime}"></span></p>
+</div>
+
+<table>
+    <thead>
+    <tr>
+        <th>Réf</th><th>Désignation</th><th>P.U HT</th><th>Qté</th>
+        <th>Unité</th><th>Taxes (%)</th><th>Rem. (%)</th><th>Montant HT</th>
+    </tr>
+    </thead>
+    <tbody>
+    <tr th:each="item : ${items}">
+        <td th:text="${item.reference}"></td>
+        <td th:text="${item.description}"></td>
+        <td th:text="${#numbers.formatDecimal(item.amount / item.quantity, 0, 'COMMA', 0, 'POINT')}"></td>
+        <td th:text="${item.quantity}"></td>
+        <td th:text="${item.measurementUnit}"></td>
+        <td th:text="${item.taxes[0]?.name}"></td>
+        <td th:text="${item.discount}"></td>
+        <td th:text="${#numbers.formatDecimal(item.amount, 0, 'COMMA', 0, 'POINT')}"></td>
+    </tr>
+    </tbody>
+</table>
+
+<table class="totaux">
+    <tr><td>TOTAL HT</td><td th:text="${#numbers.formatDecimal(totalHt,0,'COMMA',0,'POINT')}"></td></tr>
+    <tr><td>TVA</td><td th:text="${#numbers.formatDecimal(totalTva,0,'COMMA',0,'POINT')}"></td></tr>
+    <tr><td>TOTAL TTC</td><td th:text="${#numbers.formatDecimal(totalTtc,0,'COMMA',0,'POINT')}"></td></tr>
+    <tr><td>AUTRES TAXES</td><td th:text="${#numbers.formatDecimal(autresTaxes,0,'COMMA',0,'POINT')}"></td></tr>
+    <tr><td>TIMBRE DE QUITTANCE</td><td th:text="${#numbers.formatDecimal(timbre,0,'COMMA',0,'POINT')}"></td></tr>
+    <tr><td><b>TOTAL A PAYER</b></td><td><b th:text="${#numbers.formatDecimal(totalAPayer,0,'COMMA',0,'POINT')}"></b></td></tr>
+</table>
+
+<p class="resume-titre">RESUME DE LA FACTURE</p>
+<table>
+    <thead>
+    <tr><th>CATEGORIE</th><th>SOUS-TOTAL</th><th>TAUX (%)</th><th>TOTAL TAXES</th></tr>
+    </thead>
+    <tbody>
+    <tr th:each="r : ${resume}">
+        <td th:text="${r.categorie}"></td>
+        <td th:text="${#numbers.formatDecimal(r.sousTotal,0,'COMMA',0,'POINT')}"></td>
+        <td th:text="${r.taux} + '%'"></td>
+        <td th:text="${#numbers.formatDecimal(r.totalTaxe,0,'COMMA',0,'POINT')}"></td>
+    </tr>
+    </tbody>
+</table>
+
+</body>
+</html>

@@ -44,4 +44,9 @@ public class OrganisationServiceImpl extends GenericServiceImpl<Organisation, In
         return transformEntityToDTO(organisationRepository.findByRaisonSocial(entreprise));
     }
 
+    @Override
+    public OrganisationDto findByNumcc(String numcc) {
+        return transformEntityToDTO(organisationRepository.findByNumcc(numcc));
+    }
+
 }

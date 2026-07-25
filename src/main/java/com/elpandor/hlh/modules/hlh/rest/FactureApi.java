@@ -7,6 +7,7 @@ import com.elpandor.hlh.modules.hlh.model.TypeClient;
 import com.elpandor.hlh.modules.hlh.model.TypeFacture;
 import com.elpandor.hlh.modules.hlh.model.dto.FactureDto;
 import com.elpandor.hlh.modules.hlh.model.dto.FactureLoadDto;
+import com.elpandor.hlh.modules.hlh.model.dto.FneResponse;
 import com.elpandor.hlh.modules.hlh.model.dto.payload.AvoirRequest;
 import com.elpandor.hlh.modules.hlh.model.dto.payload.AvoirRequestJson;
 import com.elpandor.hlh.modules.hlh.model.dto.payload.FactureAvoirPayload;
@@ -21,11 +22,14 @@ import com.elpandor.hlh.modules.hlh.model.dto.payload.zino.ZinoExtractedDataOrde
 import com.elpandor.hlh.modules.hlh.service.ApimService;
 import com.elpandor.hlh.modules.hlh.service.FactureLoadService;
 import com.elpandor.hlh.modules.hlh.service.FactureService;
+import com.elpandor.hlh.modules.hlh.service.FnePdfGeneratorService;
 import com.elpandor.hlh.modules.hlh.service.impl.*;
 import com.elpandor.hlh.modules.hlh.utils.*;
 import com.elpandor.hlh.modules.parametrage.organisations.dto.EtablissementDto;
+import com.elpandor.hlh.modules.parametrage.organisations.dto.OrganisationDto;
 import com.elpandor.hlh.modules.parametrage.organisations.dto.PointVenteDto;
 import com.elpandor.hlh.modules.parametrage.organisations.service.EtablissementService;
+import com.elpandor.hlh.modules.parametrage.organisations.service.OrganisationService;
 import com.elpandor.hlh.modules.parametrage.organisations.service.PointVenteService;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -41,7 +45,9 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -73,6 +79,7 @@ public class FactureApi {
     private final ApimService pagimApimService;
     private final EtablissementService etablissementService;
     private final PointVenteService pointVenteService;
+    private final OrganisationService organisationService;
 
     private BKExtractedData bkExtractedData;
     private List<ZinoExtractedData> extractedDatas;
@@ -99,7 +106,9 @@ public class FactureApi {
     @Autowired
     private DeloittePDFExtractor4 deloittePDFExtractor4;
 
-    public FactureApi(FileStorageServiceImpl fileStorageService, FactureService factureService, FactureLoadService factureLoadService, HLHApimServiceImpl hlhApimService, BurgerKingApimServiceImpl burgerKingApimService, ZinoApimServiceImpl zinoApimService, CamApimServiceImpl camApimService, PAGIMApimServiceImpl pagimApimService, EtablissementService etablissementService, PointVenteService pointVenteService) {
+    private final FnePdfGeneratorService pdfService;
+
+    public FactureApi(FileStorageServiceImpl fileStorageService, FactureService factureService, FactureLoadService factureLoadService, HLHApimServiceImpl hlhApimService, BurgerKingApimServiceImpl burgerKingApimService, ZinoApimServiceImpl zinoApimService, CamApimServiceImpl camApimService, PAGIMApimServiceImpl pagimApimService, EtablissementService etablissementService, PointVenteService pointVenteService, OrganisationService organisationService, FnePdfGeneratorService pdfService) {
         this.fileStorageService = fileStorageService;
         this.factureService = factureService;
         this.factureLoadService = factureLoadService;
@@ -110,6 +119,8 @@ public class FactureApi {
         this.pagimApimService = pagimApimService;
         this.etablissementService = etablissementService;
         this.pointVenteService = pointVenteService;
+        this.organisationService = organisationService;
+        this.pdfService = pdfService;
         this.deloittePDFExtractor2 = deloittePDFExtractor2;
         this.deloittePDFExtractor3 = deloittePDFExtractor3;
     }
@@ -1358,5 +1369,16 @@ public class FactureApi {
 
         log.info("Entity deleted having id :" + id);
         return Utilities.createSuccessResponse(HttpStatus.OK, Optional.empty(), "Facture supprimé avec succès");
+    }
+
+    @PostMapping("/pdf")
+    public ResponseEntity<byte[]> genererPdf(@RequestBody FneResponse fneResponse) throws Exception {
+        OrganisationDto organisationDto = organisationService.findByNumcc(fneResponse.ncc());
+        byte[] pdf = pdfService.genererPdf(fneResponse, organisationDto);
+        return ResponseEntity.ok()
+                .contentType(MediaType.APPLICATION_PDF)
+                .header(HttpHeaders.CONTENT_DISPOSITION,
+                        "attachment; filename=\"" + fneResponse.reference() + ".pdf\"")
+                .body(pdf);
     }
 }

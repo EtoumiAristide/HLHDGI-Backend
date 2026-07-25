@@ -14,5 +14,6 @@ public interface OrganisationService extends GenericService<Organisation, Intege
     List<OrganisationDto> getAllByMultipleId(int[] ids);
 
     OrganisationDto findByRaisonSocial(String entreprise);
+    OrganisationDto findByNumcc(String numcc);
     //    void updateIsPrincipal();
 }
