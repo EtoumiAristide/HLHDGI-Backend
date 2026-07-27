@@ -1,10 +1,12 @@
 package com.elpandor.hlh.modules.automatisationzino.infrastructure.parser;
 
 import lombok.Data;
+import org.springframework.stereotype.Component;
 
 import java.util.Date;
 
 @Data
+@Component
 public class RepartitionParModePaiement {
     private Date date;
     private String modePaiement;

@@ -1,5 +1,8 @@
 package com.elpandor.hlh.modules.automatisationzino.infrastructure.parser;
 
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.stereotype.Component;
+
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStream;
@@ -13,6 +16,8 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+@Slf4j
+@Component
 public class ZinoTicketVenteExtractor {
 
     private static final String SEPARATEUR = ";";
