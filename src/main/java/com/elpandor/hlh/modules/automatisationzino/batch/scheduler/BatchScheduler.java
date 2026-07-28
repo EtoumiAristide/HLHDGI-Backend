@@ -17,7 +17,7 @@ public class BatchScheduler {
     private final JobLauncher jobLauncher;
     private final Job integrationJob;
 
-    @Scheduled(cron = "${batch.scheduler.cron:0 0 */2 * * ?}")
+    @Scheduled(cron = "${batch.scheduler.cron}")
     public void executerJob() {
         log.info("Déclenchement du job planifié");
 

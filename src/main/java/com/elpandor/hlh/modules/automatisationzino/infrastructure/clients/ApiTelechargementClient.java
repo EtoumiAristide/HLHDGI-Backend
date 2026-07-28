@@ -50,9 +50,9 @@ public class ApiTelechargementClient {
     private String cachedToken;
     private LocalDateTime tokenExpiry;
 
-    /**
-     * Récupère un token d'authentification depuis l'API Manager (avec cache)
-     */
+
+     //Récupère un token d'authentification depuis l'API Manager (avec cache)
+
     private synchronized String getToken() {
         // Vérifier si le token est encore valide (5 min de marge)
         if (cachedToken != null && tokenExpiry != null &&
@@ -105,9 +105,9 @@ public class ApiTelechargementClient {
         }
     }
 
-    /**
-     * Récupère la liste des fichiers disponibles depuis l'API
-     */
+
+     //Récupère la liste des fichiers disponibles depuis l'API
+
     public List<FichierDisponibleDTO> listerFichiersDisponibles() {
         String url = baseUrl + LIST_FILES_ENDPOINT;
         log.info("Récupération de la liste des fichiers disponibles");
@@ -151,9 +151,9 @@ public class ApiTelechargementClient {
         }
     }
 
-    /**
-     * Télécharge un fichier spécifique depuis l'API
-     */
+
+     //Télécharge un fichier spécifique depuis l'API
+
     public MultipartFile telechargerFichier(String nomFichier) {
         String downloadUrl = baseUrl + DOWNLOAD_ENDPOINT + nomFichier + "/download";
 
@@ -200,9 +200,9 @@ public class ApiTelechargementClient {
         }
     }
 
-    /**
-     * Détermine le type MIME du fichier à partir de son extension
-     */
+
+     //Détermine le type MIME du fichier à partir de son extension
+
     private String determineContentType(String nomFichier) {
         if (nomFichier == null) return "application/octet-stream";
 
@@ -224,9 +224,9 @@ public class ApiTelechargementClient {
         }
     }
 
-    /**
-     * Helper class pour transformer byte[] en MultipartFile
-     */
+
+     //Helper class pour transformer byte[] en MultipartFile
+
     private static class InMemoryMultipartFile implements MultipartFile {
         private final String name;
         private final String originalFilename;

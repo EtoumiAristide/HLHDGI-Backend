@@ -3,97 +3,152 @@ package com.elpandor.hlh.modules.automatisationzino.application.usecases;
 import com.elpandor.hlh.modules.automatisationzino.application.dto.ResultatEnvoiFNE;
 import com.elpandor.hlh.modules.automatisationzino.domain.exception.EnvoiFNEException;
 import com.elpandor.hlh.modules.automatisationzino.infrastructure.parser.TicketVenteZino;
+import com.elpandor.hlh.modules.hlh.model.dto.FactureDto;
+import com.elpandor.hlh.modules.hlh.model.dto.payload.TokenResponse;
 import com.elpandor.hlh.modules.hlh.model.dto.payload.hlh.FacturePayload;
-import com.elpandor.hlh.modules.hlh.rest.FactureApi;
+import com.elpandor.hlh.modules.hlh.service.ApimService;
+import com.elpandor.hlh.modules.hlh.service.FactureService;
+import com.elpandor.hlh.modules.parametrage.organisations.dto.PointVenteDto;
+import com.elpandor.hlh.modules.parametrage.organisations.service.PointVenteService;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import io.swagger.v3.core.util.Json;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.stereotype.Service;
 
+import java.time.LocalDate;
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
 
 @Slf4j
 @Service
 @RequiredArgsConstructor
 public class EnvoyerFactureZinoUseCase {
 
-    private final FactureApi factureApi;
+    private final ApimService zinoApimService;
     private final FacturePayloadConverter facturePayloadConverter;
+
+    private  final FactureService factureService;
+
     private final ObjectMapper objectMapper;
 
+    private final PointVenteService pointVenteService;
 
-     //Envoie les tickets Zino à la FNE via FactureApi.save()
+    @Value("${zino.api.entreprise}")
+    private String entrepriseZino;
 
-    public ResultatEnvoiFNE executer(List<TicketVenteZino> tickets, Jwt jwt) throws EnvoiFNEException {
+
+      //Envoie les tickets Zino à la FNE via ZinoApimService
+
+    public ResultatEnvoiFNE executer(List<TicketVenteZino> tickets) throws EnvoiFNEException {
+
         log.info("Envoi des factures Zino à la FNE. {} tickets.", tickets.size());
 
         try {
-            // 1. Conversion en FacturePayload (regroupé par mode de paiement)
-            List<FacturePayload> facturePayloads = facturePayloadConverter.convertir(tickets);
+            // 1. Authentification
+            log.info("Authentification auprès de l'API Manager ZINO...");
+            TokenResponse tokenResponse = zinoApimService.auth();
 
-            // 2. Pour chaque facture, appel à FactureApi.save()
+            if (tokenResponse == null || tokenResponse.getAccessToken() == null) {
+                log.error("Échec de l'authentification ZINO");
+                return ResultatEnvoiFNE.builder()
+                        .succes(false)
+                        .codeErreur("AUTH_FAILED")
+                        .message("Impossible de s'authentifier auprès de l'API ZINO")
+                        .build();
+            }
+
+            log.info("Authentification ZINO réussie");
+
+            // 2. Conversion en FacturePayload (regroupé par mode de paiement)
+            List<FacturePayload> facturePayloads = facturePayloadConverter.convertir(tickets);
+            log.info("factures générées {}", facturePayloads.size());
+
+            // 3. Pour chaque facture, envoi via ZinoApimService
             int successCount = 0;
             int errorCount = 0;
             List<String> erreurs = new ArrayList<>();
+
+            //Recherche de point de vete avec le nom de l'entreprise zino
+
+           List<PointVenteDto>  pointVenteDtoList = pointVenteService.getAllByOrganisationName(entrepriseZino);
 
             for (FacturePayload facture : facturePayloads) {
                 try {
                     log.info("Envoi de la facture: {}", facture.getNumeroFacture());
 
-                    // Sérialisation de la facture en JSON
-                    String dataFacture = objectMapper.writeValueAsString(facture);
 
-                    // Appel à FactureApi.save() - retourne ResponseEntity<Map<String, Object>>
-                    ResponseEntity<Map<String, Object>> responseEntity = factureApi.save(null, "FACTURE_VENTE", "B2C",
-                            facture.getModePaiement().toString(), "pv", "", "Envoi automatique - Batch Zino",
-                            dataFacture, null, jwt);
+                    facture.setEntreprise(!pointVenteDtoList.isEmpty() ? pointVenteDtoList.get(0).getEtablissement().getNom():null);
+                    facture.setEntreprise(!pointVenteDtoList.isEmpty() ? pointVenteDtoList.get(0).getNom():null);
+
+                    // Appel à l'API ZINO via ApimService
+                    ResponseEntity<String> response = zinoApimService.sendData(
+                            tokenResponse.getAccessToken(),
+                            facture
+                    );
 
                     // Analyse de la réponse
-                    if (responseEntity != null) {
-                        // Récupération du body
-                        Map<String, Object> responseBody = responseEntity.getBody();
+                    if (response != null && response.getStatusCode().is2xxSuccessful()) {
+                        successCount++;
+                        log.info("Facture envoyée avec succès: {}", facture.getNumeroFacture());
+                        log.debug("   Réponse: {}", response.getBody());
 
-                        // Vérification du statut HTTP
-                        boolean isSuccess = responseEntity.getStatusCode().is2xxSuccessful();
 
-                        if (isSuccess) {
-                            successCount++;
-                            log.info("Facture envoyée avec succès: {}", facture.getNumeroFacture());
-                        } else {
-                            errorCount++;
-                            String message = "Statut HTTP: " + responseEntity.getStatusCode();
-                            if (responseBody != null && responseBody.get("message") != null) {
-                                message = responseBody.get("message").toString();
-                            }
-                            String erreur = "Échec pour " + facture.getNumeroFacture() + ": " + message;
-                            erreurs.add(erreur);
-                            log.error("{}", erreur);
+                        //Gestion de la date de facture
+                        LocalDate dateFacture = null;
+
+                        String request = Json.pretty(facture);
+                        try {
+                            dateFacture = facture.getDateFacture() != null ? LocalDate.parse(facture.getDateFacture(), DateTimeFormatter.ofPattern("dd/MM/yyyy")) : LocalDate.now();
+                        } catch (Exception ex) {
+                            dateFacture = LocalDate.now();
+                            ex.printStackTrace();
                         }
+
+                        if (response != null && response.getStatusCode().is2xxSuccessful()) {
+                            FactureDto factureDto = FactureDto.builder()
+                                    .numFacture(facture.getNumeroFacture())
+                                    .dateFacture(dateFacture)
+                                    .nomClient(facture.getClientPayload().getNom())
+                                    //.lienFichier()
+                                    .typeFacture(facture.getTypeFacture())
+                                    .typeClient(facture.getTypeClient())
+                                    .modePaiement(facture.getModePaiement())
+                                    .dataSend(request)
+                                    .reponseFNE(response.getBody())
+                                    .bkExtractedData(null)
+                                    .pointVente(pointVenteDtoList.get(0))
+                                    .build();
+
+                            factureService.saveOrUpdate(factureDto);
+
+                        }
+
                     } else {
                         errorCount++;
-                        String erreur = "Réponse nulle pour " + facture.getNumeroFacture();
+                        String message = response != null ? response.getBody() : "Réponse null";
+                        String erreur = "Échec pour " + facture.getNumeroFacture() + ": " + message;
                         erreurs.add(erreur);
-                        log.error("{}", erreur);
+                        log.error(" Erreur {}", erreur);
                     }
 
                 } catch (Exception e) {
                     errorCount++;
                     String erreur = "Exception pour " + facture.getNumeroFacture() + ": " + e.getMessage();
                     erreurs.add(erreur);
-                    log.error("{}", erreur, e);
+                    log.error("erreur {}", erreur, e);
                 }
             }
 
-            // 3. Construction du résultat
+            // 4. Construction du résultat
             boolean globalSuccess = errorCount == 0;
 
             ResultatEnvoiFNE resultat = ResultatEnvoiFNE.builder()
                     .succes(globalSuccess)
-                    .idTransaction("BATCH-" + System.currentTimeMillis())
+                    .idTransaction("ZINO-BATCH-" + System.currentTimeMillis())
                     .message(String.format("Envoi terminé: %d succès, %d échecs sur %d factures",
                             successCount, errorCount, facturePayloads.size()))
                     .details(String.format("Total tickets: %d, Factures générées: %d",

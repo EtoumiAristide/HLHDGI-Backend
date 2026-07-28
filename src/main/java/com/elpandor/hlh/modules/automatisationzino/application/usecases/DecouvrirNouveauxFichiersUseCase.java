@@ -102,7 +102,7 @@ public class DecouvrirNouveauxFichiersUseCase {
                 .dateCreation(LocalDateTime.now())
                 .dateDerniereModification(LocalDateTime.now())
                 .codeProduitPrincipal(extraireCodeProduit(nomFichier))
-                .cheminAcces(null) // Pas encore téléchargé
+                .cheminAcces(null)
                 .dernierMessageErreur(null)
                 .build();
     }

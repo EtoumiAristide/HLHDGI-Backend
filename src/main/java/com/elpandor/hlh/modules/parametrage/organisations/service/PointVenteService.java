@@ -16,4 +16,5 @@ public interface PointVenteService extends GenericService<PointVente, Integer, P
     List<PointVenteDto> getAllByEtablissement(Integer etablissementId);
     List<PointVenteDto> getAllByOrganisation(Integer organisationId);
     PointVenteDto findByNom(String nom);
+    List<PointVenteDto> getAllByOrganisationName(String raisonSocial);
 }
