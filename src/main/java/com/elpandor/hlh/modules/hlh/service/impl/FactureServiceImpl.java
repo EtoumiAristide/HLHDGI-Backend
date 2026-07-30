@@ -47,4 +47,10 @@ public class FactureServiceImpl extends GenericServiceImpl<Facture, Integer, Fac
     public FactureDto findByNumFactureFNE(String numFactureFNE) {
         return factureMapper.toDto(factureRepository.findByReponseFNEContainingIgnoreCase(numFactureFNE));
     }
+
+    @Override
+    public List<FactureDto> findByAutomatisationFileName(String automatisationFileName) {
+        return factureRepository.findByAutomatisationFileName(automatisationFileName).stream().map(this::transformEntityToDTO).toList();
+        //return factureMapper.toDto(factureRepository.findByAutomatisationFileName(automatisationFileName));
+    }
 }

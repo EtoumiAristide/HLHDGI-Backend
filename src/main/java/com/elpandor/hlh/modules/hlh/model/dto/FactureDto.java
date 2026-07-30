@@ -4,6 +4,7 @@ import com.elpandor.hlh.modules.hlh.model.ModePaiement;
 import com.elpandor.hlh.modules.hlh.model.TypeClient;
 import com.elpandor.hlh.modules.hlh.model.TypeFacture;
 import com.elpandor.hlh.modules.parametrage.organisations.dto.PointVenteDto;
+import jakarta.persistence.Column;
 import lombok.Builder;
 import lombok.Data;
 
@@ -23,7 +24,7 @@ public class FactureDto {
 
     private String dataSend;
     private String reponseFNE;
-    private String bkExtractedData;;
+    private String bkExtractedData;
 
     private TypeFacture typeFacture;
     private TypeClient typeClient;
@@ -33,4 +34,13 @@ public class FactureDto {
 
     private Instant dateCreation;
     private Instant dateModification;
+
+    //======= Nouveau champs pour la prise en compte de l'automatisation =======/
+    private Boolean isAutomatisation;
+
+    private String ticketExtractedData;
+
+    private String automatisationFileName;
+    private String automatisationFileType;
+    private String automatisationFileSize;
 }

@@ -18,6 +18,7 @@ public interface FactureRepository extends JpaRepository<Facture, Integer> {
     Page<Facture> findByPointVente_Etablissement_Organisation_RaisonSocialOrderByIdDesc(Pageable pageable, String entreprise);
 
     Facture findByReponseFNEContainingIgnoreCase(String numFacture);
+    List<Facture> findByAutomatisationFileName(String automatisationFileName);
 
     @Query(value = """
                 SELECT

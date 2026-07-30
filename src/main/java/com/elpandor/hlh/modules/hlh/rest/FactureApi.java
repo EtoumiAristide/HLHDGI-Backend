@@ -383,7 +383,7 @@ public class FactureApi {
 
                 if (etablissement.getOrganisation().getRaisonSocial().equalsIgnoreCase(entreprisePagim)) {
                     tokenResponse = pagimApimService.auth();
-                    System.out.println("tokenResponse " + tokenResponse);
+//                    System.out.println("tokenResponse " + tokenResponse);
                     response = pagimApimService.sendData(tokenResponse.getAccessToken(), facture);
                 }
 

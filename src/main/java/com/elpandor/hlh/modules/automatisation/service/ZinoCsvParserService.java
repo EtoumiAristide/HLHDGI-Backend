@@ -1,8 +1,9 @@
 package com.elpandor.hlh.modules.automatisation.service;
 
-import com.elpandor.hlh.modules.automatisation.model.zino.Detail;
-import com.elpandor.hlh.modules.automatisation.model.zino.Paiement;
-import com.elpandor.hlh.modules.automatisation.model.zino.TicketVente;
+import com.elpandor.hlh.modules.automatisation.model.zino.dto.Detail;
+import com.elpandor.hlh.modules.automatisation.model.zino.dto.Paiement;
+import com.elpandor.hlh.modules.automatisation.model.zino.dto.TicketVente;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -16,11 +17,13 @@ import java.util.ArrayList;
 import java.util.List;
 
 @Service
+@Slf4j
 public class ZinoCsvParserService {
 
     private static final DateTimeFormatter DATE_FORMATTER = DateTimeFormatter.ofPattern("dd/MM/yyyy");
 
     public List<TicketVente> parseCsvFile(MultipartFile file) throws Exception {
+        log.info("==== Début extraction des données de la facture {} ======= ", file.getOriginalFilename());
         List<TicketVente> tickets = new ArrayList<>();
         TicketVente currentTicket = null;
 
@@ -32,7 +35,7 @@ public class ZinoCsvParserService {
                     continue;
                 }
 
-                // 🔥 Méthode robuste pour supprimer le BOM et autres caractères invisibles
+                //Méthode robuste pour supprimer le BOM et autres caractères invisibles
                 String cleanLine = line.replaceFirst("^\\uFEFF", "")
                         .replaceFirst("^\\ufeff", "")
                         .trim();
@@ -68,7 +71,7 @@ public class ZinoCsvParserService {
                 }
             }
         }
-
+        log.info("✅ {} tickets extraits du fichier {}", tickets.size(), file.getOriginalFilename());
         return tickets;
     }
 
@@ -78,21 +81,21 @@ public class ZinoCsvParserService {
         ticket.setClient(columns[2].trim());
 
         if (columns.length > 3 && columns[3] != null && !columns[3].isEmpty()) {
-            ticket.setNomClient(columns[3].trim());
+            ticket.setNomClient(columns[2].trim());
         }
 
-        if (columns.length > 4 && columns[4] != null && !columns[4].isEmpty()) {
-            ticket.setPrenomClient(columns[4].trim());
+        if (columns.length > 3 && columns[3] != null && !columns[3].isEmpty()) {
+            ticket.setPrenomClient(columns[3].trim());
         }
 
         // colonne 7 = numéro de ticket (index 7 car 0-based)
-        if (columns.length > 7) {
-            ticket.setNumeroTicket(columns[7].trim());
+        if (columns.length > 8) {
+            ticket.setNumeroTicket(columns[8].trim());
         }
 
         // colonne 8 = code client (index 8)
-        if (columns.length > 8) {
-            ticket.setCodeClient(columns[8].trim());
+        if (columns.length > 9) {
+            ticket.setCodeClient(columns[9].trim());
         }
 
         return ticket;

@@ -1,11 +1,12 @@
 package com.elpandor.hlh.modules.automatisation.service;
 
-import com.elpandor.hlh.modules.automatisation.model.zino.Detail;
-import com.elpandor.hlh.modules.automatisation.model.zino.TicketVente;
+import com.elpandor.hlh.modules.automatisation.model.zino.dto.Detail;
+import com.elpandor.hlh.modules.automatisation.model.zino.dto.TicketVente;
 import com.elpandor.hlh.modules.hlh.model.ModePaiement;
 import com.elpandor.hlh.modules.hlh.model.TypeClient;
 import com.elpandor.hlh.modules.hlh.model.TypeFacture;
 import com.elpandor.hlh.modules.hlh.model.dto.payload.hlh.*;
+import com.elpandor.hlh.modules.parametrage.organisations.dto.PointVenteDto;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDate;
@@ -21,7 +22,7 @@ public class TicketToFactureTransformer {
     /**
      * Transforme un TicketVente en FacturePayload
      */
-    public FacturePayload transform(TicketVente ticket) {
+    public FacturePayload transform(TicketVente ticket, PointVenteDto pointVente) {
         if (ticket == null) {
             return null;
         }
@@ -34,10 +35,10 @@ public class TicketToFactureTransformer {
         facture.setTypeFacture(TypeFacture.FACTURE_VENTE);
         facture.setTypeClient(determinerTypeClient(ticket));
         facture.setModePaiement(determinerModePaiement(ticket));
-        facture.setPointVente("Y2CI"); // Vous pouvez le rendre configurable
-        facture.setEntreprise("HLH");
-        facture.setReception("vente");
-        facture.setSheetName("TICKETVENTE");
+        facture.setPointVente(pointVente != null ? pointVente.getNom() : "");
+        facture.setEntreprise(pointVente != null ? pointVente.getEtablissement().getNom() : "");
+        facture.setReception("Facture " + facture.getDateFacture());
+        facture.setSheetName((ticket.getPaiement() != null ? ticket.getPaiement().getMoyenPaiement() : "TICKETVENTE") + " - " + ticket.getNumeroTicket());
 
         // Client
         facture.setClientPayload(creerClientPayload(ticket));
@@ -49,7 +50,7 @@ public class TicketToFactureTransformer {
         facture.setTotauxPayload(calculerTotaux(ticket));
 
         // Taxes
-        calculerTaxes(facture);
+        calculerTaxes(facture, !ticket.getDetails().isEmpty() ? ticket.getDetails().get(0) : null);
 
         return facture;
     }
@@ -57,12 +58,12 @@ public class TicketToFactureTransformer {
     /**
      * Transforme une liste de TicketVente en liste de FacturePayload
      */
-    public List<FacturePayload> transformAll(List<TicketVente> tickets) {
+    public List<FacturePayload> transformAll(List<TicketVente> tickets, PointVenteDto pointVente) {
         if (tickets == null || tickets.isEmpty()) {
             return new ArrayList<>();
         }
         return tickets.stream()
-                .map(this::transform)
+                .map(ticketVente -> transform(ticketVente, pointVente))
                 .collect(Collectors.toList());
     }
 
@@ -74,7 +75,7 @@ public class TicketToFactureTransformer {
 
         // Construction du nom complet
         String nom = ticket.getClient();
-        if (ticket.getNomClient() != null && !ticket.getNomClient().isEmpty()) {
+        if (ticket.getNomClient() != null && !ticket.getNomClient().trim().isEmpty()) {
             nom = ticket.getNomClient();
             if (ticket.getPrenomClient() != null && !ticket.getPrenomClient().isEmpty()) {
                 nom = ticket.getPrenomClient() + " " + nom;
@@ -83,7 +84,8 @@ public class TicketToFactureTransformer {
         client.setNom(nom);
 
         // Numéro de carte/identifiant client
-        client.setNumeroCC(ticket.getCodeClient() != null ? ticket.getCodeClient() : "");
+//        client.setNumeroCC(ticket.getCodeClient() != null ? ticket.getCodeClient() : "");
+        client.setNumeroCC("");
 
         return client;
     }
@@ -100,7 +102,7 @@ public class TicketToFactureTransformer {
             ligne.setDate(formatDate(ticket.getDate()));
             ligne.setProduit(detail.getDescription() + " (" + detail.getReference() + ")");
             ligne.setQuantite(detail.getQuantite().intValue());
-            ligne.setUnite("U"); // Unité standard
+            //ligne.setUnite("U"); // Unité standard
 
             // Prix unitaire HT (hors taxe)
             double prixUnitaireHT = detail.getPrixUnitaire().doubleValue();
@@ -148,7 +150,7 @@ public class TicketToFactureTransformer {
      * TDT = 0.5% sur le TTC
      * TCN = 0.2% sur le TTC
      */
-    private void calculerTaxes(FacturePayload facture) {
+    private void calculerTaxes(FacturePayload facture, Detail detail) {
         TotauxPayload totaux = facture.getTotauxPayload();
         if (totaux == null) {
             return;
@@ -157,32 +159,33 @@ public class TicketToFactureTransformer {
         double ht = totaux.getHt();
         double ttc = totaux.getTtc();
 
-        // --- TVA (18%) ---
+        // --- TVA (18%) taux inscrit dans le fichier ---
         TaxePayload tva = new TaxePayload();
-        tva.setTaux(18.0);
+        tva.setTaux(detail != null ? detail.getTauxTVA() : 18.0);
         tva.setBase(ht); // Base HT
         tva.setMontant(ht * 0.18);
         totaux.setTva(tva);
+        facture.setPourcentageTVA(tva.getTaux());
 
         // --- TDT (0.5%) ---
-        TaxePayload tdt = new TaxePayload();
+        /*TaxePayload tdt = new TaxePayload();
         tdt.setBase(ttc); // Base TTC
         tdt.setMontant(ttc * 0.005);
         // Pas de taux pour TDT (car vous avez dit que c'est optionnel)
-        totaux.setTdt(tdt);
+        totaux.setTdt(tdt);*/
 
         // --- TCN (0.2%) ---
-        TaxePayload tcn = new TaxePayload();
+        /*TaxePayload tcn = new TaxePayload();
         tcn.setTaux(0.2);
         tcn.setBase(ttc); // Base TTC
         tcn.setMontant(ttc * 0.002);
-        totaux.setTcn(tcn);
+        totaux.setTcn(tcn);*/
 
         // Mise à jour du TTC = HT + TVA + TDT + TCN
-        double ttcCalcule = ht +
+        /*double ttcCalcule = ht +
                 (ht * 0.18) +
                 (ttc * 0.005) +
-                (ttc * 0.002);
+                (ttc * 0.002);*/
         // On garde le TTC original qui vient du paiement
         // mais on peut le recalculer si besoin
         // totaux.setTtc(ttcCalcule); // Optionnel
@@ -193,14 +196,14 @@ public class TicketToFactureTransformer {
      */
     private TypeClient determinerTypeClient(TicketVente ticket) {
         // Logique par défaut - à adapter selon vos règles métier
-        String codeClient = ticket.getCodeClient();
+        /*String codeClient = ticket.getCodeClient();
         if (codeClient != null) {
             if (codeClient.startsWith("305-")) {
                 return TypeClient.B2C;
             } else if (codeClient.matches("\\d+")) {
                 return TypeClient.B2B;
             }
-        }
+        }*/
         return TypeClient.B2C; // Par défaut
     }
 
@@ -209,17 +212,20 @@ public class TicketToFactureTransformer {
      */
     private ModePaiement determinerModePaiement(TicketVente ticket) {
         if (ticket.getPaiement() == null) {
-            return ModePaiement.cash;
+//            return ModePaiement.cash;
+            return ModePaiement.mobilemoney;
         }
 
         String moyenPaiement = ticket.getPaiement().getMoyenPaiement();
         if (moyenPaiement == null) {
-            return ModePaiement.cash;
+//            return ModePaiement.cash;
+            return ModePaiement.mobilemoney;
         }
 
         // Mapping des moyens de paiement du CSV vers les énumérations
-        switch (moyenPaiement.toLowerCase()) {
+        switch (moyenPaiement.toLowerCase().trim()) {
             case "orange money":
+            case "orange":
             case "wave":
                 return ModePaiement.mobilemoney;
             case "carte bancaire franc cfa":
@@ -248,7 +254,7 @@ public class TicketToFactureTransformer {
         // Format: FV-YYYYMMDD-XXXXX
         String dateStr = ticket.getDate().format(DateTimeFormatter.ofPattern("yyyyMMdd"));
         String ticketNum = ticket.getNumeroTicket() != null ? ticket.getNumeroTicket() : "00000";
-        return "FV-" + dateStr + "-" + String.format("%05d", Integer.parseInt(ticketNum));
+        return "FV-" + String.format("%05d", Integer.parseInt(ticketNum)) + "-" + ticket.getPaiement().getCodePaiement() + "-" + dateStr;
     }
 
     /**

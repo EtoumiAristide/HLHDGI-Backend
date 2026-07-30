@@ -1,4 +1,4 @@
-package com.elpandor.hlh.modules.automatisation.model.zino;
+package com.elpandor.hlh.modules.automatisation.model.zino.dto;
 
 import lombok.Data;
 
