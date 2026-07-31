@@ -17,7 +17,7 @@ public class AutomatisationTask {
 
     //    @Scheduled(cron = "0 0 8 * * 1") //Passage tous les lundis à 88h
 //    @Scheduled(cron = "0 0 7 15 * *") //Passage tous les 15 de chaque mois à 7H00
-    @Scheduled(timeUnit = TimeUnit.MINUTES, fixedRate = 5L)  //Passage chaque 5 minutes
+//    @Scheduled(timeUnit = TimeUnit.MINUTES, fixedRate = 5L)  //Passage chaque 5 minutes
     private void checkFileAndSendFNE() {
         log.info("Start Task - Checking file and send FN ...");
         try {

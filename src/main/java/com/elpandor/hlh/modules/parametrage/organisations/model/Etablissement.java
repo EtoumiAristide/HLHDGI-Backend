@@ -1,5 +1,6 @@
 package com.elpandor.hlh.modules.parametrage.organisations.model;
 
+import com.elpandor.hlh.common.entities.AuditModel;
 import jakarta.persistence.*;
 import jakarta.validation.constraints.Size;
 import lombok.AllArgsConstructor;
@@ -22,7 +23,7 @@ import org.springframework.cache.annotation.Cacheable;
 @NoArgsConstructor
 @AllArgsConstructor
 @Table(name = "etablissements")
-public class Etablissement {
+public class Etablissement extends AuditModel {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     @Column(name = "id", nullable = false)
