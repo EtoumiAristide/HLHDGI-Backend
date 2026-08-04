@@ -17,4 +17,5 @@ public class DetailZino {
     private double tauxTVA;
     private double montantHT;
     private double tva;
+    private double remise; //En pourcentage
 }

@@ -49,7 +49,11 @@ public class BatchConfiguration {
     @Bean
     public Step stepTraitement() {
         return new StepBuilder("stepTraitement", jobRepository)
-                .<FichierSource, FichierSource>chunk(10, transactionManager)
+                // chunk(1) : chaque fichier envoie une facture réelle et irréversible à la FNE.
+                // Un chunk > 1 partagerait la transaction DB entre plusieurs fichiers : un
+                // problème sur l'un d'eux romprait le commit des autres, déjà facturés côté FNE
+                // mais dont le statut local serait perdu (risque de re-facturation au run suivant).
+                .<FichierSource, FichierSource>chunk(1, transactionManager)
                 .reader(reader)
                 .processor(processor)
                 .writer(writer)

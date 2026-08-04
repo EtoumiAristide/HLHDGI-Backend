@@ -23,7 +23,7 @@ public class TransformerFichierZinoUseCase {
         try (FileInputStream fis = new FileInputStream(fichierBrut)) {
             List<TicketVenteZino> tickets = extractor.extraire(fis);
             log.info("Fichier transformé avec succès. {} tickets extraits.", tickets.size());
-            log.info("Fichier transformé avec succès. {} tickets extraits.", tickets);
+//            log.info("Fichier transformé avec succès. {} tickets extraits.", tickets);
             return tickets;
 
         } catch (Exception e) {

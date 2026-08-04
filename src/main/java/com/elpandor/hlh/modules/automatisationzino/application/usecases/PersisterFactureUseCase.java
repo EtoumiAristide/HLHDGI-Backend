@@ -29,7 +29,7 @@ public class PersisterFactureUseCase {
     public void executer(List<TicketVenteZino> tickets, String nomFichierSource) {
         log.info("Persistance des factures Zino. {} tickets.", tickets.size());
 
-        if (tickets == null || tickets.isEmpty()) {
+        if (tickets.isEmpty()) {
             log.warn("Aucun ticket à persister");
             return;
         }

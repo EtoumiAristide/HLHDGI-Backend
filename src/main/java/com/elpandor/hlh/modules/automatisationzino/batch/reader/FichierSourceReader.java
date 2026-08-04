@@ -28,7 +28,8 @@ public class FichierSourceReader implements ItemReader<FichierSource> {
 
     @BeforeStep
     public void beforeStep(StepExecution stepExecution) {
-        log.info("Préparation du reader avec maxTentatives: {}", maxTentatives);
+//        log.info("Préparation du reader avec maxTentatives: {}", maxTentatives);
+        log.info("Préparation du reader");
 
         List<FichierSource> fichiersATraiter = new ArrayList<>();
 

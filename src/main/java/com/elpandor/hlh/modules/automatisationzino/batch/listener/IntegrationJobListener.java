@@ -31,8 +31,8 @@ public class IntegrationJobListener implements JobExecutionListener {
 
         fichierSystemeService.nettoyerFichiersTemporaires();
 
-        if (jobExecution.getAllFailureExceptions() != null &&
-                !jobExecution.getAllFailureExceptions().isEmpty()) {
+        jobExecution.getAllFailureExceptions();
+        if (!jobExecution.getAllFailureExceptions().isEmpty()) {
             log.error("Erreurs rencontrées pendant l'exécution:");
             jobExecution.getAllFailureExceptions().forEach(e ->
                     log.error("   - {}", e.getMessage())

@@ -10,4 +10,5 @@ public class LigneProduitPayload {
     private String unite;
     private double prixUnitaireHT;
     private double montantHT;
+    private double remise; //En pourcentage
 }

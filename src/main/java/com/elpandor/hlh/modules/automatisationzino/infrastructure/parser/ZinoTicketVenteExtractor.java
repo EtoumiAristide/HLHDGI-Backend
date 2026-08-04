@@ -111,6 +111,7 @@ public class ZinoTicketVenteExtractor {
                     double tauxTva = parseDouble(colonnes[6]);
                     double montantHtLigne = parseDouble(colonnes[7]);
                     double tvaLigne = montantHtLigne * (tauxTva / 100.0);
+                    double remise = colonnes[10] != null ? parseDouble(colonnes[10]) : 0;
 
                     totalMontantHT += montantHtLigne;
                     totalTva += tvaLigne;
@@ -124,6 +125,7 @@ public class ZinoTicketVenteExtractor {
                     detail.setTauxTVA(tauxTva);
                     detail.setMontantHT(montantHtLigne);
                     detail.setTva(tvaLigne);
+                    detail.setRemise(remise);
                     details.add(detail);
 
                     // Garder le premier détail comme principal

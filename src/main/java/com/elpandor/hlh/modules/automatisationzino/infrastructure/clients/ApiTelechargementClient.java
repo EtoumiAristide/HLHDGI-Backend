@@ -51,7 +51,7 @@ public class ApiTelechargementClient {
     private LocalDateTime tokenExpiry;
 
 
-     //Récupère un token d'authentification depuis l'API Manager (avec cache)
+    //Récupère un token d'authentification depuis l'API Manager (avec cache)
 
     private synchronized String getToken() {
         // Vérifier si le token est encore valide (5 min de marge)
@@ -106,7 +106,7 @@ public class ApiTelechargementClient {
     }
 
 
-     //Récupère la liste des fichiers disponibles depuis l'API
+    //Récupère la liste des fichiers disponibles depuis l'API
 
     public List<FichierDisponibleDTO> listerFichiersDisponibles() {
         String url = baseUrl + LIST_FILES_ENDPOINT;
@@ -152,9 +152,18 @@ public class ApiTelechargementClient {
     }
 
 
-     //Télécharge un fichier spécifique depuis l'API
+    //Télécharge un fichier spécifique depuis l'API
 
     public MultipartFile telechargerFichier(String nomFichier) {
+        return telechargerFichier(nomFichier, true);
+    }
+
+    /**
+     * @param permettreRetryToken si true, un 401 déclenche une régénération forcée du token
+     *                            et UN SEUL nouvel essai. Passé à false lors de ce second essai
+     *                            pour éviter toute boucle infinie.
+     */
+    private MultipartFile telechargerFichier(String nomFichier, boolean permettreRetryToken) {
         String downloadUrl = baseUrl + DOWNLOAD_ENDPOINT + nomFichier + "/download";
 
         log.info("Téléchargement du fichier: {}", nomFichier);
@@ -194,14 +203,36 @@ public class ApiTelechargementClient {
                 throw new RuntimeException("Échec du téléchargement: " + response.getStatusCode());
             }
 
+        } catch (org.springframework.web.client.HttpClientErrorException.Unauthorized e) {
+            // Le token est localement considéré comme valide (pas encore expiré selon notre
+            // cache) mais rejeté par le Gateway (901: Invalid JWT token). Cas rencontré en
+            // pratique côté WSO2 (redémarrage/désync de Gateway, révocation côté Key Manager).
+            // On force la régénération du token et on retente UNE fois avant d'abandonner.
+            if (permettreRetryToken) {
+                log.warn("Token rejeté (401) par le Gateway pour {} alors qu'il semblait valide localement. " +
+                        "Régénération forcée du token et nouvel essai...", nomFichier);
+                invaliderTokenEnCache();
+                return telechargerFichier(nomFichier, false);
+            }
+            log.error("Erreur lors du téléchargement de {} après régénération du token: {}", nomFichier, e.getMessage(), e);
+            throw new RuntimeException("Erreur de téléchargement: " + e.getMessage(), e);
+
         } catch (Exception e) {
             log.error("Erreur lors du téléchargement de {}: {}", nomFichier, e.getMessage(), e);
             throw new RuntimeException("Erreur de téléchargement: " + e.getMessage(), e);
         }
     }
 
+    /**
+     * Invalide le token en cache pour forcer une régénération au prochain appel à getToken().
+     */
+    private synchronized void invaliderTokenEnCache() {
+        cachedToken = null;
+        tokenExpiry = null;
+    }
 
-     //Détermine le type MIME du fichier à partir de son extension
+
+    //Détermine le type MIME du fichier à partir de son extension
 
     private String determineContentType(String nomFichier) {
         if (nomFichier == null) return "application/octet-stream";
@@ -225,7 +256,7 @@ public class ApiTelechargementClient {
     }
 
 
-     //Helper class pour transformer byte[] en MultipartFile
+    //Helper class pour transformer byte[] en MultipartFile
 
     private static class InMemoryMultipartFile implements MultipartFile {
         private final String name;

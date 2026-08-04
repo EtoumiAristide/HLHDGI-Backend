@@ -38,7 +38,8 @@ public class FichierProcessor implements ItemProcessor<FichierSource, FichierSou
         long startTime = System.currentTimeMillis();
 
         log.info("Traitement du fichier: {}", fichierSource.getNomFichier());
-        log.info("Tentative {}/{}", fichierSource.getTentativeEnvoi() + 1, maxTentatives);
+//        log.info("Tentative {}/{}", fichierSource.getTentativeEnvoi() + 1, maxTentatives);
+        log.info("Tentative {}", fichierSource.getTentativeEnvoi() + 1);
 
         List<TicketVenteZino> tickets = null;
         File fichierBrut = null;
@@ -67,7 +68,7 @@ public class FichierProcessor implements ItemProcessor<FichierSource, FichierSou
 
             // 5️PERSISTANCE
             log.info("Persistance des factures...");
-            persisterFactureUseCase.executer(tickets,fichierSource.getNomFichier());
+            persisterFactureUseCase.executer(tickets, fichierSource.getNomFichier());
             log.info("Persistance terminée");
 
             // 6️HISTORISATION
@@ -133,10 +134,11 @@ public class FichierProcessor implements ItemProcessor<FichierSource, FichierSou
                     fichierSource.getCodeProduitPrincipal()
             );
 
-            int nouvelleTentative = fichierSource.getTentativeEnvoi() + 1;
+            //int nouvelleTentative = fichierSource.getTentativeEnvoi() + 1;
             fichierSourceRepository.incrementerTentative(fichierSource.getId());
 
-            if (nouvelleTentative >= maxTentatives) {
+            //Mis en commentaire car nombre d'essai doit être illimité
+            /*if (nouvelleTentative >= maxTentatives) {
                 fichierSourceRepository.updateStatut(
                         fichierSource.getId(),
                         "ECHEC_DEFINITIF",
@@ -144,17 +146,25 @@ public class FichierProcessor implements ItemProcessor<FichierSource, FichierSou
                 );
                 log.error("Fichier {} en ÉCHEC DÉFINITIF après {} tentatives",
                         fichierSource.getNomFichier(), maxTentatives);
-            } else {
-                fichierSourceRepository.updateStatut(
-                        fichierSource.getId(),
-                        "ERROR",
-                        e.getMessage()
-                );
-                log.warn("Fichier {} en ERREUR, nouvelle tentative prévue",
-                        fichierSource.getNomFichier());
-            }
+            } else {*/
+            fichierSourceRepository.updateStatut(
+                    fichierSource.getId(),
+                    "ERROR",
+                    e.getMessage()
+            );
+            log.warn("Fichier {} en ERREUR, nouvelle tentative prévue",
+                    fichierSource.getNomFichier());
+            //}
 
-            throw e;
+            // IMPORTANT: ne pas relancer l'exception ici.
+            // Le statut ERROR et l'historique ont déjà été persistés ci-dessus.
+            // Relancer ferait échouer tout le CHUNK Spring Batch, ce qui provoque
+            // un ROLLBACK de la transaction du chunk entier — y compris les fichiers
+            // déjà traités AVEC SUCCÈS dans le même chunk (facture déjà envoyée à la
+            // FNE mais statut local perdu -> re-traitement et RE-FACTURATION au prochain
+            // run). On retourne null pour indiquer à Spring Batch de simplement
+            // exclure cet item du chunk sans faire échouer l'étape.
+            return null;
         } finally {
             // Nettoyage du fichier temporaire
             if (fichierBrut != null && fichierBrut.exists()) {
@@ -168,7 +178,7 @@ public class FichierProcessor implements ItemProcessor<FichierSource, FichierSou
     }
 
 
-     //Sauvegarde les données extraites en JSON dans la base
+    //Sauvegarde les données extraites en JSON dans la base
 
     private void sauvegarderDonneesExtraites(Long fichierSourceId, List<TicketVenteZino> tickets, String nomFichier) {
         try {

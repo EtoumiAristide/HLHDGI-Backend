@@ -24,11 +24,12 @@ import java.util.*;
 public class FacturePayloadConverter {
 
     /**
-     * Convertit une liste de tickets Zino en liste de FacturePayload
-     * Regroupement par mode de paiement (comme dans le controller Zino)
+     * Convertit une liste de tickets Zino en liste de FacturePayload.
+     * Chaque TicketVenteZino donne lieu à exactement une FacturePayload
+     * (plus de regroupement par mode de paiement).
      *
      * @param tickets Liste des tickets extraits du fichier CSV
-     * @return Liste des FacturePayload prêtes à être envoyées à la FNE
+     * @return Liste des FacturePayload prêtes à être envoyées à la FNE, une par ticket
      */
     public List<FacturePayload> convertir(List<TicketVenteZino> tickets) {
         log.info("Conversion de {} tickets Zino en FacturePayload", tickets.size());
@@ -40,33 +41,14 @@ public class FacturePayloadConverter {
 
         List<FacturePayload> factures = new ArrayList<>();
 
-        // 1. Regrouper par mode de paiement (comme dans traitementFactureZino())
-        Map<String, List<TicketVenteZino>> ticketsParMode = new LinkedHashMap<>();
-
+        // Un ticket Zino = une FacturePayload (plus de regroupement par mode de paiement)
         for (TicketVenteZino ticket : tickets) {
-            String mode = ticket.getModePaiement() != null ? ticket.getModePaiement() : "INCONNU";
-
-            // Normalisation : "glovo" → "Espèces Franc CFA" (comme dans le controller)
-            if ("glovo".equalsIgnoreCase(mode)) {
-                mode = "Espèces Franc CFA";
-            }
-
-            ticketsParMode.computeIfAbsent(mode, k -> new ArrayList<>()).add(ticket);
-        }
-
-        log.debug("Répartition par mode de paiement: {}", ticketsParMode.keySet());
-
-        // 2. Pour chaque mode de paiement, créer une FacturePayload
-        for (Map.Entry<String, List<TicketVenteZino>> entry : ticketsParMode.entrySet()) {
-            String modePaiement = entry.getKey();
-            List<TicketVenteZino> ticketsDuMode = entry.getValue();
-
-            FacturePayload facture = creerFacturePourMode(modePaiement, ticketsDuMode);
+            FacturePayload facture = creerFactureDepuisTicket(ticket);
             factures.add(facture);
 
-            log.debug("Facture générée pour {}: {} tickets, HT={}, TTC={}",
-                    modePaiement,
-                    ticketsDuMode.size(),
+            log.debug("Facture générée pour le ticket {}: mode={}, HT={}, TTC={}",
+                    ticket.getNumTicket(),
+                    facture.getModePaiement(),
                     facture.getTotauxPayload().getHt(),
                     facture.getTotauxPayload().getTtc());
         }
@@ -76,31 +58,35 @@ public class FacturePayloadConverter {
     }
 
     /**
-     * Crée une FacturePayload pour un mode de paiement donné
+     * Crée une FacturePayload à partir d'un unique ticket Zino
      */
-    private FacturePayload creerFacturePourMode(String modePaiement, List<TicketVenteZino> tickets) {
+    private FacturePayload creerFactureDepuisTicket(TicketVenteZino ticket) {
         FacturePayload facture = new FacturePayload();
 
         // --- Date ---
-        TicketVenteZino premierTicket = tickets.get(0);
-        if (premierTicket.getDate() != null) {
-            facture.setDateFacture(new SimpleDateFormat("dd/MM/yyyy").format(premierTicket.getDate()));
+        if (ticket.getDate() != null) {
+            facture.setDateFacture(new SimpleDateFormat("dd/MM/yyyy").format(ticket.getDate()));
         }
 
         // --- Types ---
         facture.setTypeFacture(TypeFacture.FACTURE_VENTE);
         facture.setTypeClient(TypeClient.B2C);
 
+        // --- Normalisation du mode de paiement : "glovo" -> "Espèces Franc CFA" ---
+        String modePaiementBrut = ticket.getModePaiement() != null ? ticket.getModePaiement() : "INCONNU";
+        if ("glovo".equalsIgnoreCase(modePaiementBrut)) {
+            modePaiementBrut = "Espèces Franc CFA";
+        }
+
         // --- SheetName (pour l'identification) ---
-        facture.setSheetName(modePaiement + " - ZINO");
+        facture.setSheetName(modePaiementBrut + " - ZINO - Ticket " + ticket.getNumTicket());
 
         // --- Mode de paiement (mapping vers ModePaiement enum) ---
-        facture.setModePaiement(mapperModePaiement(modePaiement));
+        facture.setModePaiement(mapperModePaiement(modePaiementBrut));
 
         // --- Client ---
         ClientPayload client = new ClientPayload();
-//        client.setNom(modePaiement + " - ZINO");
-        client.setNom(tickets.get(0).getNomClient());
+        client.setNom(ticket.getNomClient());
         client.setNumeroCC("");
         facture.setClientPayload(client);
 
@@ -109,68 +95,68 @@ public class FacturePayloadConverter {
         double totalHT = 0.0;
         double totalTVA = 0.0;
         double totalTTC = 0.0;
+        double tauxTvaReference = 18.0;
 
-        for (TicketVenteZino ticket : tickets) {
-            // Vérifier si le ticket a des détails
-            if (ticket.getDetails() != null && !ticket.getDetails().isEmpty()) {
-                // Parcourir tous les détails du ticket
-                for (DetailZino detail : ticket.getDetails()) {
-                    LigneProduitPayload ligne = new LigneProduitPayload();
-                    ligne.setProduit(detail.getDesignation() != null ? detail.getCodeProduit() + " - " + detail.getDesignation() : "Produit Zino");
-                    ligne.setMontantHT(detail.getMontantHT() != 0.0 ? detail.getMontantHT() : 0.0);
-                    ligne.setQuantite((int) Math.round(detail.getQuantite())); // Convertir double en int
-                    ligne.setPrixUnitaireHT(detail.getPrixUnitaire() != 0.0 ? detail.getPrixUnitaire() : 0.0);
-                    ligne.setDate(facture.getDateFacture());
-
-                    // Ajouter le taux de TVA si disponible
-//                    if (detail.getTauxTVA() > 0) {
-//                        ligne.setTaux(detail.getTauxTva());
-//                    }
-
-                    lignes.add(ligne);
-
-                    // Accumuler les totaux
-                    totalHT += detail.getMontantHT();
-                    totalTVA += detail.getTva();
-                    totalTTC += (detail.getMontantHT() + detail.getTva());
-                }
-            } else {
-                // Fallback: Si pas de détails, utiliser les données principales du ticket
-                log.warn("Ticket {} sans détails, utilisation des données principales", ticket.getNumTicket());
+        if (ticket.getDetails() != null && !ticket.getDetails().isEmpty()) {
+            // Parcourir tous les détails du ticket
+            for (DetailZino detail : ticket.getDetails()) {
                 LigneProduitPayload ligne = new LigneProduitPayload();
-                ligne.setProduit(ticket.getDesignationPrincipale() != null ?
-                        ticket.getDesignationPrincipale() : "Vente Zino");
-                ligne.setMontantHT(ticket.getMontantHT() != null ? ticket.getMontantHT() : 0.0);
-                ligne.setQuantite(1);
-                ligne.setPrixUnitaireHT(ticket.getMontantHT() != null ? ticket.getMontantHT() : 0.0);
+                ligne.setProduit(detail.getDesignation() != null ? detail.getCodeProduit() + " - " + detail.getDesignation() : "Produit Zino");
+                ligne.setMontantHT(detail.getMontantHT());
+                ligne.setQuantite((int) Math.round(detail.getQuantite())); // Convertir double en int
+                ligne.setPrixUnitaireHT(detail.getPrixUnitaire());
                 ligne.setDate(facture.getDateFacture());
+                ligne.setRemise(detail.getRemise());
+
                 lignes.add(ligne);
 
-                totalHT += ticket.getMontantHT() != null ? ticket.getMontantHT() : 0.0;
-                totalTVA += ticket.getTva() != null ? ticket.getTva() : 0.0;
-                totalTTC += ticket.getMontantTTC() != null ? ticket.getMontantTTC() : 0.0;
+                // Accumuler les totaux
+                totalHT += detail.getMontantHT();
+                totalTVA += detail.getTva();
+                totalTTC += (detail.getMontantHT() + detail.getTva());
+
+                if (detail.getTauxTVA() > 0) {
+                    tauxTvaReference = detail.getTauxTVA();
+                }
             }
+        } else {
+            // Fallback: Si pas de détails, utiliser les données principales du ticket
+            log.warn("Ticket {} sans détails, utilisation des données principales", ticket.getNumTicket());
+            LigneProduitPayload ligne = new LigneProduitPayload();
+            ligne.setProduit(ticket.getDesignationPrincipale() != null ?
+                    ticket.getDesignationPrincipale() : "Vente Zino");
+            ligne.setMontantHT(ticket.getMontantHT() != null ? ticket.getMontantHT() : 0.0);
+            ligne.setQuantite(1);
+            ligne.setPrixUnitaireHT(ticket.getMontantHT() != null ? ticket.getMontantHT() : 0.0);
+            ligne.setDate(facture.getDateFacture());
+            ligne.setRemise(0.0);
+            lignes.add(ligne);
+
+            totalHT += ticket.getMontantHT() != null ? ticket.getMontantHT() : 0.0;
+            totalTVA += ticket.getTva() != null ? ticket.getTva() : 0.0;
+            totalTTC += ticket.getMontantTTC() != null ? ticket.getMontantTTC() : 0.0;
         }
         facture.setLignes(lignes);
 
-        // --- Totaux (comme dans traitementFactureZino) ---
+        // --- Totaux ---
         TotauxPayload totaux = new TotauxPayload();
         totaux.setHt(totalHT);
 
         // TVA
         TaxePayload tva = new TaxePayload();
-        tva.setTaux(!tickets.get(0).getDetails().isEmpty() ? tickets.get(0).getDetails().get(0).getTauxTVA() : 18.0);
+        tva.setTaux(tauxTvaReference);
         tva.setBase(totalHT);
         tva.setMontant(totalTVA);
         totaux.setTva(tva);
 
         // TTC
         totaux.setTtc(totalTTC);
-        totaux.setModePaiement(modePaiement);
+        totaux.setModePaiement(modePaiementBrut);
         facture.setTotauxPayload(totaux);
 
-        // --- Numéro de facture (comme dans le controller) ---
-        facture.setNumeroFacture("ZINO_" + System.currentTimeMillis() + "_" + modePaiement.replace(" ", "_"));
+        // --- Numéro de facture : basé sur le numéro de ticket Zino pour la traçabilité 1:1 ---
+        String refTicket = ticket.getNumTicket() != null ? String.valueOf(ticket.getNumTicket()) : String.valueOf(System.currentTimeMillis());
+        facture.setNumeroFacture("ZINO_" + refTicket + "_" + System.currentTimeMillis());
 
         return facture;
     }
