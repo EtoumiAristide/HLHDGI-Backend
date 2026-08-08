@@ -36,6 +36,9 @@ public class DecouvrirNouveauxFichiersUseCase {
                 return 0;
             }
 
+            //On retire les fichiers portant la mention OK s'il en existe
+            fichiersDisponibles = fichiersDisponibles.stream().filter(fichierDisponibleDTO -> !fichierDisponibleDTO.getNomFichier().toUpperCase().contains("_OK")).toList();
+
             log.info("{} fichiers disponibles sur l'API", fichiersDisponibles.size());
             fichiersDisponibles.forEach(f ->
                     log.debug("   - {} ({} octets, {})",
@@ -90,7 +93,7 @@ public class DecouvrirNouveauxFichiersUseCase {
     }
 
 
-     //Crée un objet FichierSource à partir d'un FichierDisponibleDTO
+    //Crée un objet FichierSource à partir d'un FichierDisponibleDTO
 
     private FichierSource creerFichierSource(FichierDisponibleDTO dto) {
         String nomFichier = dto.getNomFichier();

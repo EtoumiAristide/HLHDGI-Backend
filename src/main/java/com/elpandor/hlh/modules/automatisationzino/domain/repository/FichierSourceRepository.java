@@ -16,4 +16,10 @@ public interface FichierSourceRepository {
     void incrementerTentative(Long id);
 
     void sauvegarderDonneesExtraites(Long id, String jsonData);
+
+    /**
+     * Compte les fichiers ayant le statut donné et modifiés après la date indiquée.
+     * Utilisé pour détecter, à la fin d'un run, les fichiers passés en erreur pendant CE run.
+     */
+    long countByStatutDepuis(String statut, java.time.LocalDateTime depuis);
 }

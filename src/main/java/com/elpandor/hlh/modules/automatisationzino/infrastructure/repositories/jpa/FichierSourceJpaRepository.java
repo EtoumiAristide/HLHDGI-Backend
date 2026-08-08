@@ -36,4 +36,6 @@ public interface FichierSourceJpaRepository extends JpaRepository<FichierSourceE
     @Query("UPDATE FichierSourceEntity f SET f.donneesExtraitesJson = :jsonData, f.extractionEffectuee = true WHERE f.id = :id")
     void sauvegarderDonneesExtraites(@Param("id") Long id,
                                      @Param("jsonData") String jsonData);
+
+    long countByStatutAndDateDerniereModificationAfter(String statut, java.time.LocalDateTime dateDerniereModification);
 }

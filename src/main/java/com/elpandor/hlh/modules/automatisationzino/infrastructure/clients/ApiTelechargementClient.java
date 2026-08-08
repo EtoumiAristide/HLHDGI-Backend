@@ -232,6 +232,66 @@ public class ApiTelechargementClient {
     }
 
 
+    //Demande le renommage, côté API Zino, d'un fichier déjà traité avec succès
+
+    public void renommerFichier(String nomFichier) {
+        renommerFichier(nomFichier, true);
+    }
+
+    /**
+     * @param permettreRetryToken si true, un 401 déclenche une régénération forcée du token
+     *                            et UN SEUL nouvel essai. Passé à false lors de ce second essai
+     *                            pour éviter toute boucle infinie.
+     */
+    private void renommerFichier(String nomFichier, boolean permettreRetryToken) {
+        String renameUrl = baseUrl + DOWNLOAD_ENDPOINT + nomFichier + "/rename";
+
+        log.info("Renommage du fichier: {}", nomFichier);
+        log.info("   URL: {}", renameUrl);
+
+        try {
+            String token = getToken();
+
+            HttpHeaders headers = new HttpHeaders();
+            headers.setBearerAuth(token);
+            headers.setAccept(Collections.singletonList(MediaType.APPLICATION_JSON));
+
+            HttpEntity<String> entity = new HttpEntity<>(headers);
+
+            ResponseEntity<String> response = restTemplate.exchange(
+                    renameUrl,
+                    HttpMethod.PUT,
+                    entity,
+                    String.class
+            );
+
+            if (response.getStatusCode().is2xxSuccessful()) {
+                log.info("Fichier renommé avec succès: {}", nomFichier);
+            } else {
+                log.error("Échec du renommage: {}", response.getStatusCode());
+                throw new RuntimeException("Échec du renommage: " + response.getStatusCode());
+            }
+
+        } catch (org.springframework.web.client.HttpClientErrorException.Unauthorized e) {
+            // Même logique de résilience que pour le téléchargement : le token est localement
+            // valide mais rejeté par le Gateway -> régénération forcée et un seul nouvel essai.
+            if (permettreRetryToken) {
+                log.warn("Token rejeté (401) par le Gateway lors du renommage de {} alors qu'il semblait valide localement. " +
+                        "Régénération forcée du token et nouvel essai...", nomFichier);
+                invaliderTokenEnCache();
+                renommerFichier(nomFichier, false);
+                return;
+            }
+            log.error("Erreur lors du renommage de {} après régénération du token: {}", nomFichier, e.getMessage(), e);
+            throw new RuntimeException("Erreur de renommage: " + e.getMessage(), e);
+
+        } catch (Exception e) {
+            log.error("Erreur lors du renommage de {}: {}", nomFichier, e.getMessage(), e);
+            throw new RuntimeException("Erreur de renommage: " + e.getMessage(), e);
+        }
+    }
+
+
     //Détermine le type MIME du fichier à partir de son extension
 
     private String determineContentType(String nomFichier) {

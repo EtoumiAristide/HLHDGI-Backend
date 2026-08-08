@@ -70,4 +70,9 @@ public class FichierSourceRepositoryImpl implements FichierSourceRepository {
     public void sauvegarderDonneesExtraites(Long id, String jsonData) {
         jpaRepository.sauvegarderDonneesExtraites(id, jsonData);
     }
+
+    @Override
+    public long countByStatutDepuis(String statut, java.time.LocalDateTime depuis) {
+        return jpaRepository.countByStatutAndDateDerniereModificationAfter(statut, depuis);
+    }
 }
