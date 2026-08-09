@@ -64,7 +64,7 @@ public class FichierProcessor implements ItemProcessor<FichierSource, FichierSou
 
             // 4️ENVOI À LA FNE VIA ZinoApimService (SANS JWT)
             log.info("Envoi à la FNE via ZinoApimService...");
-            ResultatEnvoiFNE resultat = envoyerFactureZinoUseCase.executer(tickets);
+            ResultatEnvoiFNE resultat = envoyerFactureZinoUseCase.executer(tickets, fichierSource.getNomFichier());
             log.info("Envoi terminé: {}", resultat.getMessage());
 
             // 5️PERSISTANCE
@@ -95,8 +95,8 @@ public class FichierProcessor implements ItemProcessor<FichierSource, FichierSou
 
                 // 8️⃣ RENOMMAGE CÔTÉ API ZINO
                 // Ne doit jamais remettre en cause le statut SENT déjà acquis (facture déjà
-                // envoyée à la FNE) : une erreur ici est journalisée, mais n'invalide pas le
-                // traitement, sous peine de re-déclencher une refacturation au prochain run.
+                // envoyée à la FNE) : une erreur ici est journalisée mais n'invalide pas le
+                // traitement, sous peine de re-déclencher une re-facturation au prochain run.
                 try {
                     log.info("Renommage du fichier côté API Zino...");
                     renommerFichierUseCase.executer(fichierSource.getNomFichier());
@@ -150,7 +150,7 @@ public class FichierProcessor implements ItemProcessor<FichierSource, FichierSou
             //int nouvelleTentative = fichierSource.getTentativeEnvoi() + 1;
             fichierSourceRepository.incrementerTentative(fichierSource.getId());
 
-            //Mis en commentaire, car nombre d'essais doit être illimité
+            //Mis en commentaire car nombre d'essai doit être illimité
             /*if (nouvelleTentative >= maxTentatives) {
                 fichierSourceRepository.updateStatut(
                         fichierSource.getId(),
@@ -158,7 +158,7 @@ public class FichierProcessor implements ItemProcessor<FichierSource, FichierSou
                         "Échec définitif après " + maxTentatives + " tentatives: " + e.getMessage()
                 );
                 log.error("Fichier {} en ÉCHEC DÉFINITIF après {} tentatives",
-                        fichierSource.getNomFichier(), maxTentatives) ;
+                        fichierSource.getNomFichier(), maxTentatives);
             } else {*/
             fichierSourceRepository.updateStatut(
                     fichierSource.getId(),
@@ -169,12 +169,12 @@ public class FichierProcessor implements ItemProcessor<FichierSource, FichierSou
                     fichierSource.getNomFichier());
             //}
 
-            // IMPORTANT : ne pas relancer l'exception ici.
+            // IMPORTANT: ne pas relancer l'exception ici.
             // Le statut ERROR et l'historique ont déjà été persistés ci-dessus.
             // Relancer ferait échouer tout le CHUNK Spring Batch, ce qui provoque
             // un ROLLBACK de la transaction du chunk entier — y compris les fichiers
             // déjà traités AVEC SUCCÈS dans le même chunk (facture déjà envoyée à la
-            // FNE mais statut local perdu -> retraitement et RE-FACTURATION au prochain
+            // FNE mais statut local perdu -> re-traitement et RE-FACTURATION au prochain
             // run). On retourne null pour indiquer à Spring Batch de simplement
             // exclure cet item du chunk sans faire échouer l'étape.
             return null;

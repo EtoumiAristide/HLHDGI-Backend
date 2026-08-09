@@ -11,7 +11,9 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
+import java.time.Instant;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.List;
 
 public interface FactureRepository extends JpaRepository<Facture, Integer> {
@@ -19,6 +21,17 @@ public interface FactureRepository extends JpaRepository<Facture, Integer> {
 
     Facture findByReponseFNEContainingIgnoreCase(String numFacture);
     List<Facture> findByAutomatisationFileName(String automatisationFileName);
+
+    /**
+     * Factures issues de l'automatisation (Zino) sur une période, pour le rapport d'état des extractions.
+     */
+    List<Facture> findByIsAutomatisationTrueAndDateCreationBetweenOrderByDateCreationAsc(Instant debut, Instant finExclusive);
+
+    /**
+     * Version paginée, pour l'affichage du détail des factures dans le rapport d'extraction
+     * (la liste complète, elle, reste utilisée uniquement pour les exports Excel/PDF/Word).
+     */
+    Page<Facture> findByIsAutomatisationTrueAndDateCreationBetween(Instant debut, Instant fin, Pageable pageable);
 
     @Query(value = """
                 SELECT

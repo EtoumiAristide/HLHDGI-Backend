@@ -22,4 +22,10 @@ public interface FichierSourceRepository {
      * Utilisé pour détecter, à la fin d'un run, les fichiers passés en erreur pendant CE run.
      */
     long countByStatutDepuis(String statut, java.time.LocalDateTime depuis);
+
+    /**
+     * Fichiers créés dans l'intervalle [debut, fin], triés par date de création croissante.
+     * Utilisé pour le rapport d'état des extractions.
+     */
+    List<FichierSource> findByPeriode(java.time.LocalDateTime debut, java.time.LocalDateTime fin);
 }

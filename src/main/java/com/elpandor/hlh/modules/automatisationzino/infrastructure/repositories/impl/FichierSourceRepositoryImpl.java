@@ -75,4 +75,11 @@ public class FichierSourceRepositoryImpl implements FichierSourceRepository {
     public long countByStatutDepuis(String statut, java.time.LocalDateTime depuis) {
         return jpaRepository.countByStatutAndDateDerniereModificationAfter(statut, depuis);
     }
+
+    @Override
+    public List<FichierSource> findByPeriode(java.time.LocalDateTime debut, java.time.LocalDateTime fin) {
+        return jpaRepository.findByDateCreationBetweenOrderByDateCreationAsc(debut, fin).stream()
+                .map(mapper::toDomain)
+                .collect(Collectors.toList());
+    }
 }

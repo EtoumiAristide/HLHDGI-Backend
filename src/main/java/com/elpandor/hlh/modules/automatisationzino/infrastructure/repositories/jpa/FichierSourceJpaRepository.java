@@ -38,4 +38,6 @@ public interface FichierSourceJpaRepository extends JpaRepository<FichierSourceE
                                      @Param("jsonData") String jsonData);
 
     long countByStatutAndDateDerniereModificationAfter(String statut, java.time.LocalDateTime dateDerniereModification);
+
+    List<FichierSourceEntity> findByDateCreationBetweenOrderByDateCreationAsc(java.time.LocalDateTime debut, java.time.LocalDateTime fin);
 }

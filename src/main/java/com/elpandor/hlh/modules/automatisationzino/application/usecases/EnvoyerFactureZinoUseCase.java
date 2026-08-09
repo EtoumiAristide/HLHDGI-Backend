@@ -44,7 +44,7 @@ public class EnvoyerFactureZinoUseCase {
 
     //Envoie les tickets Zino à la FNE via ZinoApimService
 
-    public ResultatEnvoiFNE executer(List<TicketVenteZino> tickets) throws EnvoiFNEException {
+    public ResultatEnvoiFNE executer(List<TicketVenteZino> tickets, String nomFichierSource) throws EnvoiFNEException {
 
         log.info("Envoi des factures Zino à la FNE. {} tickets.", tickets.size());
 
@@ -122,6 +122,7 @@ public class EnvoyerFactureZinoUseCase {
                                 .bkExtractedData(null)
                                 .pointVente(pointVenteDtoList.get(0))
                                 .isAutomatisation(true)
+                                .automatisationFileName(nomFichierSource)
                                 .build();
 
                         factureService.saveOrUpdate(factureDto);
