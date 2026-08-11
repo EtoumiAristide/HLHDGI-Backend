@@ -64,10 +64,10 @@ public class Facture extends AuditModel {
     @Column(name = "ticket_extracted_data", columnDefinition = "TEXT DEFAULT NULL")
     private String ticketExtractedData;
 
-    @Column(name = "automatisation_file_name", columnDefinition = "VARCHAR(150) DEFAULT NULL")
+    @Column(name = "automatisation_file_name", columnDefinition = "VARCHAR DEFAULT NULL")
     private String automatisationFileName;
-    @Column(name = "automatisation_file_type", columnDefinition = "VARCHAR(150) DEFAULT NULL")
+    @Column(name = "automatisation_file_type", columnDefinition = "VARCHAR DEFAULT NULL")
     private String automatisationFileType;
-    @Column(name = "automatisation_file_size", columnDefinition = "VARCHAR(150) DEFAULT NULL")
+    @Column(name = "automatisation_file_size", columnDefinition = "VARCHAR DEFAULT NULL")
     private String automatisationFileSize;
 }

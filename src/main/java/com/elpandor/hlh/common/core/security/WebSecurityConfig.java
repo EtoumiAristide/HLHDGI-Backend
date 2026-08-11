@@ -45,7 +45,7 @@ public class WebSecurityConfig {
                 .csrf(AbstractHttpConfigurer::disable)
                 .cors(cors -> cors.configurationSource(request -> {
                     CorsConfiguration configuration = new CorsConfiguration();
-                    configuration.setAllowedOrigins(List.of("http://localhost:4200", "https://app.camandsonsentreprises.com"));
+                    configuration.setAllowedOrigins(List.of("http://localhost:4200", "https://app.camandsonsentreprises.com", "http://38.242.201.239:8080"));
                     configuration.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "DELETE", "OPTIONS"));
                     configuration.setAllowedHeaders(List.of("*"));
                     configuration.setExposedHeaders(List.of("Content-Disposition")); // Important pour l'export

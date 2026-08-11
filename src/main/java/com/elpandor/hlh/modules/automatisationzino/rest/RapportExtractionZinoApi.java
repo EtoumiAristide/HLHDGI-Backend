@@ -28,6 +28,7 @@ import java.util.Map;
 @Slf4j
 @RestController
 @RequestMapping("/api/v1/automatisationzino/rapport")
+@CrossOrigin(origins = "*", allowedHeaders = "*")
 @RequiredArgsConstructor
 public class RapportExtractionZinoApi {
 

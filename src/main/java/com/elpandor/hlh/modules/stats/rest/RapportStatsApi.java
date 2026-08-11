@@ -25,6 +25,7 @@ import java.util.Map;
 
 @RestController
 @RequestMapping("/api/v1/rapport-stats")
+@CrossOrigin(origins = "*", allowedHeaders = "*")
 @RequiredArgsConstructor
 public class RapportStatsApi {
     private final RapportStatsService rapportStatsService;
