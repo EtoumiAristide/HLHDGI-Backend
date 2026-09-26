@@ -8,18 +8,22 @@ import lombok.NoArgsConstructor;
 import java.util.List;
 import java.util.Map;
 
-// Résultat normalisé de l'envoi d'une facture Zino à la FNE via ApimService.Remplace l'ancien FNEResponseDTO du batch (qui supposait un envoi de fichier multipart, mécanisme non utilisé en réalité).
-
+/**
+ * Réponse du webservice de traitement manuel des tickets Zino.
+ */
 @Data
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-public class ResultatEnvoiFNE {
+public class TraiterTicketsZinoResponse {
+
     private boolean succes;
-    private String reponseBrute;
-    private String codeErreur;
     private String message;
+    private String nomFichierSource;
+    private int nombreTicketsRecus;
     private String idTransaction;
+    private String codeErreur;
     private String details;
+    private long tempsExecutionMs;
     private List<Map<String, String>> liensFactureFNE;
 }

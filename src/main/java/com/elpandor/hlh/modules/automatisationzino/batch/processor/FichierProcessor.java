@@ -1,6 +1,7 @@
 package com.elpandor.hlh.modules.automatisationzino.batch.processor;
 
 import com.elpandor.hlh.modules.automatisationzino.application.dto.ResultatEnvoiFNE;
+import com.elpandor.hlh.modules.automatisationzino.application.dto.TraiterTicketsZinoRequest;
 import com.elpandor.hlh.modules.automatisationzino.application.usecases.*;
 import com.elpandor.hlh.modules.automatisationzino.domain.model.FichierSource;
 import com.elpandor.hlh.modules.automatisationzino.domain.repository.FichierSourceRepository;
@@ -13,6 +14,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
 import java.io.File;
+import java.time.LocalDateTime;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -30,6 +32,9 @@ public class FichierProcessor implements ItemProcessor<FichierSource, FichierSou
     private final RenommerFichierUseCase renommerFichierUseCase;
     private final FichierSourceRepository fichierSourceRepository;
     private final ObjectMapper objectMapper;
+
+    //Traitement manuel
+    private final DecouvrirNouveauxFichiersUseCase decouvrirNouveauxFichiersUseCase;
 
     @Value("${batch.max-tentatives:3}")
     private int maxTentatives;
@@ -64,7 +69,7 @@ public class FichierProcessor implements ItemProcessor<FichierSource, FichierSou
 
             // 4️ENVOI À LA FNE VIA ZinoApimService (SANS JWT)
             log.info("Envoi à la FNE via ZinoApimService...");
-            ResultatEnvoiFNE resultat = envoyerFactureZinoUseCase.executer(tickets, fichierSource.getNomFichier());
+            ResultatEnvoiFNE resultat = envoyerFactureZinoUseCase.executer(tickets, fichierSource.getNomFichier(), null);
             log.info("Envoi terminé: {}", resultat.getMessage());
 
             // 5️PERSISTANCE
@@ -209,5 +214,141 @@ public class FichierProcessor implements ItemProcessor<FichierSource, FichierSou
         } catch (Exception e) {
             log.error("Erreur lors de la sauvegarde des données JSON: {}", e.getMessage());
         }
+    }
+
+    public ResultatEnvoiFNE manuelProcess(TraiterTicketsZinoRequest request) {
+        long startTime = System.currentTimeMillis();
+
+        log.info("Traitement manuel ticket: {}", request.getNomFichierSource());
+//        log.info("Tentative {}/{}", fichierSource.getTentativeEnvoi() + 1, maxTentatives);
+
+        File fichierBrut = null;
+        FichierSource fichierSource = decouvrirNouveauxFichiersUseCase.creerFichierSource(request);
+        ResultatEnvoiFNE resultat = null;
+
+        try {
+            //Sauvegarde du fichier source
+            fichierSource = fichierSourceRepository.save(fichierSource);
+
+            // 3️⃣ SAUVEGARDE DES DONNÉES EXTRAITES EN JSON
+            log.info("Sauvegarde des données extraites en JSON...");
+            sauvegarderDonneesExtraites(fichierSource.getId(), request.getTickets(), fichierSource.getNomFichier());
+            log.info("Données sauvegardées");
+
+            // 4️ENVOI À LA FNE VIA ZinoApimService (SANS JWT)
+            log.info("Envoi à la FNE via ZinoApimService...");
+            resultat = envoyerFactureZinoUseCase.executer(request.getTickets(), fichierSource.getNomFichier(), request.getPointDeVente());
+            log.info("Envoi terminé: {}", resultat.getMessage());
+
+            // 5 ️PERSISTANCE
+            log.info("Persistance des factures...");
+            persisterFactureUseCase.executer(request.getTickets(), fichierSource.getNomFichier());
+            log.info("Persistance terminée");
+
+            // 6️ HISTORISATION
+            long executionTime = System.currentTimeMillis() - startTime;
+            historiserEnvoiUseCase.executer(
+                    fichierSource.getNomFichier(),
+                    resultat,
+                    fichierSource.getTentativeEnvoi() + 1,
+                    executionTime,
+                    fichierSource.getCodeProduitPrincipal()
+            );
+            log.info("Historique sauvegardé");
+
+            // 7️MISE À JOUR DU STATUT
+            if (resultat.isSucces()) {
+                fichierSource.setStatut("SENT");
+                fichierSourceRepository.updateStatut(
+                        fichierSource.getId(),
+                        "SENT",
+                        null
+                );
+                log.info("Fichier {} traité avec SUCCÈS", fichierSource.getNomFichier());
+
+            } else {
+                fichierSource.setStatut("ERROR");
+                fichierSourceRepository.updateStatut(
+                        fichierSource.getId(),
+                        "ERROR",
+                        resultat.getMessage()
+                );
+                log.warn("Échec du traitement du fichier {}: {}",
+                        fichierSource.getNomFichier(),
+                        resultat.getMessage());
+            }
+
+            fichierSourceRepository.incrementerTentative(fichierSource.getId());
+            log.info("Temps total: {}ms", System.currentTimeMillis() - startTime);
+
+        } catch (Exception e) {
+            log.error("Erreur lors du traitement du fichier {}: {}",
+                    request.getNomFichierSource(), e.getMessage(), e);
+
+            // Sauvegarde des données si elles ont été extraites
+            if (request.getTickets() != null && !request.getTickets().isEmpty()) {
+                try {
+                    sauvegarderDonneesExtraites(fichierSource.getId(), request.getTickets(), request.getNomFichierSource());
+                } catch (Exception ex) {
+                    log.warn("Impossible de sauvegarder les données extraites: {}", ex.getMessage());
+                }
+            }
+
+            long executionTime = System.currentTimeMillis() - startTime;
+            resultat = ResultatEnvoiFNE.builder()
+                    .succes(false)
+                    .codeErreur("EXCEPTION")
+                    .message(e.getMessage())
+                    .build();
+
+            historiserEnvoiUseCase.executer(
+                    fichierSource.getNomFichier(),
+                    resultat,
+                    fichierSource.getTentativeEnvoi() + 1,
+                    executionTime,
+                    fichierSource.getCodeProduitPrincipal()
+            );
+
+            //int nouvelleTentative = fichierSource.getTentativeEnvoi() + 1;
+            fichierSourceRepository.incrementerTentative(fichierSource.getId());
+
+            //Mis en commentaire car nombre d'essai doit être illimité
+            /*if (nouvelleTentative >= maxTentatives) {
+                fichierSourceRepository.updateStatut(
+                        fichierSource.getId(),
+                        "ECHEC_DEFINITIF",
+                        "Échec définitif après " + maxTentatives + " tentatives: " + e.getMessage()
+                );
+                log.error("Fichier {} en ÉCHEC DÉFINITIF après {} tentatives",
+                        fichierSource.getNomFichier(), maxTentatives);
+            } else {*/
+            fichierSourceRepository.updateStatut(
+                    fichierSource.getId(),
+                    "ERROR",
+                    e.getMessage()
+            );
+            log.warn("Fichier {} en ERREUR, nouvelle tentative prévue",
+                    fichierSource.getNomFichier());
+            //}
+
+            // IMPORTANT: ne pas relancer l'exception ici.
+            // Le statut ERROR et l'historique ont déjà été persistés ci-dessus.
+            // Relancer ferait échouer tout le CHUNK Spring Batch, ce qui provoque
+            // un ROLLBACK de la transaction du chunk entier — y compris les fichiers
+            // déjà traités AVEC SUCCÈS dans le même chunk (facture déjà envoyée à la
+            // FNE mais statut local perdu -> re-traitement et RE-FACTURATION au prochain
+            // run). On retourne null pour indiquer à Spring Batch de simplement
+            // exclure cet item du chunk sans faire échouer l'étape.
+            return resultat;
+        } finally {
+            // Nettoyage du fichier temporaire
+            if (fichierBrut != null && fichierBrut.exists()) {
+                boolean deleted = fichierBrut.delete();
+                log.debug("Fichier temporaire supprimé: {} - {}",
+                        fichierBrut.getAbsolutePath(), deleted ? "ok" : "supprimé!!");
+            }
+        }
+
+        return resultat;
     }
 }

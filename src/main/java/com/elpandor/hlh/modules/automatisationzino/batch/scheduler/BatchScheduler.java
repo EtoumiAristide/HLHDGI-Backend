@@ -14,7 +14,7 @@ import org.springframework.stereotype.Component;
 @RequiredArgsConstructor
 public class BatchScheduler {
 
-    private final JobLauncher jobLauncher;
+    /*private final JobLauncher jobLauncher;
     private final Job integrationJob;
 
     @Scheduled(cron = "${batch.scheduler.cron}")
@@ -33,5 +33,5 @@ public class BatchScheduler {
         } catch (Exception e) {
             log.error("Erreur lors de l'exécution du job planifié: {}", e.getMessage(), e);
         }
-    }
+    }*/
 }

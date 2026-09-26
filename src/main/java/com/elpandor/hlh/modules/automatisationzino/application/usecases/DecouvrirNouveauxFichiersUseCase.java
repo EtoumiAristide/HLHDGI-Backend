@@ -1,5 +1,6 @@
 package com.elpandor.hlh.modules.automatisationzino.application.usecases;
 
+import com.elpandor.hlh.modules.automatisationzino.application.dto.TraiterTicketsZinoRequest;
 import com.elpandor.hlh.modules.automatisationzino.domain.model.FichierSource;
 import com.elpandor.hlh.modules.automatisationzino.domain.repository.FichierSourceRepository;
 import com.elpandor.hlh.modules.automatisationzino.infrastructure.clients.ApiTelechargementClient;
@@ -105,6 +106,21 @@ public class DecouvrirNouveauxFichiersUseCase {
                 .dateCreation(LocalDateTime.now())
                 .dateDerniereModification(LocalDateTime.now())
                 .codeProduitPrincipal(extraireCodeProduit(nomFichier))
+                .cheminAcces(null)
+                .dernierMessageErreur(null)
+                .build();
+    }
+
+    public FichierSource creerFichierSource(TraiterTicketsZinoRequest dto) {
+        String nomFichier = dto.getNomFichierSource();
+
+        return FichierSource.builder()
+                .nomFichier(nomFichier)
+                .statut("PENDING")
+                .tentativeEnvoi(0)
+                .dateCreation(LocalDateTime.now())
+                .dateDerniereModification(LocalDateTime.now())
+                .codeProduitPrincipal(nomFichier.replace("MANUEL_", ""))
                 .cheminAcces(null)
                 .dernierMessageErreur(null)
                 .build();

@@ -12,6 +12,8 @@ import com.elpandor.hlh.modules.hlh.service.impl.ZinoApimServiceImpl;
 import com.elpandor.hlh.modules.parametrage.organisations.dto.PointVenteDto;
 import com.elpandor.hlh.modules.parametrage.organisations.service.PointVenteService;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.google.gson.Gson;
+import com.google.gson.JsonObject;
 import io.swagger.v3.core.util.Json;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -22,7 +24,9 @@ import org.springframework.stereotype.Service;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 @Slf4j
 @Service
@@ -44,7 +48,7 @@ public class EnvoyerFactureZinoUseCase {
 
     //Envoie les tickets Zino à la FNE via ZinoApimService
 
-    public ResultatEnvoiFNE executer(List<TicketVenteZino> tickets, String nomFichierSource) throws EnvoiFNEException {
+    public ResultatEnvoiFNE executer(List<TicketVenteZino> tickets, String nomFichierSource, String nomPointDeVente) throws EnvoiFNEException {
 
         log.info("Envoi des factures Zino à la FNE. {} tickets.", tickets.size());
 
@@ -74,7 +78,14 @@ public class EnvoyerFactureZinoUseCase {
             List<String> erreurs = new ArrayList<>();
 
             //Recherche de point de vente avec le nom de l'entreprise zino
-            List<PointVenteDto> pointVenteDtoList = pointVenteService.getAllByOrganisationName(entrepriseZino);
+            List<PointVenteDto> pointVenteDtoList = new ArrayList<>();
+            if (nomPointDeVente == null) {
+                pointVenteDtoList = pointVenteService.getAllByOrganisationName(entrepriseZino);
+            } else {
+                PointVenteDto pointVente = pointVenteService.findByNom(nomPointDeVente);
+                if (pointVente != null) pointVenteDtoList.add(pointVente);
+            }
+            List<Map<String, String>> liensFacture = new ArrayList<>();
 
             for (FacturePayload facture : facturePayloads) {
                 try {
@@ -127,6 +138,16 @@ public class EnvoyerFactureZinoUseCase {
 
                         factureService.saveOrUpdate(factureDto);
 
+                        if (nomFichierSource != null) {
+                            Gson gson = new Gson();
+                            JsonObject jsonObject = gson.fromJson(response.getBody(), JsonObject.class);
+
+                            Map<String, String> dataFacture = new HashMap<>();
+                            dataFacture.put("referenceFNE", jsonObject.get("reference").getAsString());
+                            dataFacture.put("lienFNE", jsonObject.get("token").getAsString());
+                            liensFacture.add(dataFacture);
+                        }
+
                     } else {
                         errorCount++;
                         String message = response != null ? response.getBody() : "Réponse null";
@@ -158,6 +179,10 @@ public class EnvoyerFactureZinoUseCase {
             if (!globalSuccess) {
                 resultat.setCodeErreur("PARTIAL_FAILURE");
                 resultat.setMessage(resultat.getMessage() + " - Erreurs: " + String.join("; ", erreurs));
+            }
+
+            if (nomPointDeVente != null) {
+                resultat.setLiensFactureFNE(liensFacture);
             }
 
             log.info("Résultat final: {}", resultat.getMessage());
