@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8"/>
+    <title>Rapport d'état des extractions - Zino</title>
+    <style>
+        @page { size: A4 landscape; margin: 20px; }
+        body { font-family: Helvetica, Arial, sans-serif; font-size: 10px; color: #222; }
+        h1 { font-size: 16px; margin-bottom: 2px; }
+        .periode { color: #555; margin-bottom: 12px; }
+        .totaux { margin-bottom: 16px; }
+        .totaux span { display: inline-block; margin-right: 18px; padding: 4px 8px; background: #f0f2f5; border-radius: 4px; }
+        h2 { font-size: 13px; margin-top: 20px; margin-bottom: 6px; border-bottom: 1px solid #ccc; padding-bottom: 3px; }
+        table { width: 100%; border-collapse: collapse; margin-bottom: 10px; }
+        th { background: #1f2d5c; color: #fff; text-align: left; padding: 5px; font-size: 9px; }
+        td { padding: 4px 5px; border-bottom: 1px solid #eee; font-size: 9px; }
+        tr:nth-child(even) td { background: #f8f9fb; }
+        .statut-SENT { color: #1a7f37; font-weight: bold; }
+        .statut-ERROR { color: #c0341d; font-weight: bold; }
+        .statut-PENDING { color: #9a6700; font-weight: bold; }
+    </style>
+</head>
+<body>
+    <h1>Rapport d'état des extractions automatiques - Zino</h1>
+    <div class="periode">Période du <span th:text="${dateDebut}">01/01/2026</span> au <span th:text="${dateFin}">31/01/2026</span></div>
+
+    <div class="totaux">
+        <span>Fichiers traités : <strong th:text="${totaux.nombreFichiers}">0</strong></span>
+        <span>Succès : <strong th:text="${totaux.nombreFichiersSucces}">0</strong></span>
+        <span>Erreurs : <strong th:text="${totaux.nombreFichiersErreur}">0</strong></span>
+        <span>En attente : <strong th:text="${totaux.nombreFichiersEnAttente}">0</strong></span>
+        <span>Tickets extraits : <strong th:text="${totaux.nombreTicketsExtraits}">0</strong></span>
+        <span>Factures envoyées : <strong th:text="${totaux.nombreFacturesEnvoyees}">0</strong></span>
+    </div>
+
+    <h2>Synthèse par fichier</h2>
+    <table>
+        <thead>
+        <tr>
+            <th>Fichier</th>
+            <th>Statut</th>
+            <th>Date création</th>
+            <th>Dernière modification</th>
+            <th>Tentatives</th>
+            <th>Tickets extraits</th>
+            <th>Factures envoyées</th>
+            <th>Dernier message d'erreur</th>
+        </tr>
+        </thead>
+        <tbody>
+        <tr th:each="f : ${fichiers}">
+            <td th:text="${f.nomFichier}"></td>
+            <td th:text="${f.statut}" th:class="'statut-' + ${f.statut}"></td>
+            <td th:text="${f.dateCreation != null ? #temporals.format(f.dateCreation, 'dd/MM/yyyy HH:mm') : ''}"></td>
+            <td th:text="${f.dateDerniereModification != null ? #temporals.format(f.dateDerniereModification, 'dd/MM/yyyy HH:mm') : ''}"></td>
+            <td th:text="${f.tentativeEnvoi}"></td>
+            <td th:text="${f.nombreTickets}"></td>
+            <td th:text="${f.nombreFacturesEnvoyees}"></td>
+            <td th:text="${f.dernierMessageErreur}"></td>
+        </tr>
+        </tbody>
+    </table>
+
+    <h2>Détail des factures</h2>
+    <table>
+        <thead>
+        <tr>
+            <th>N° Facture</th>
+            <th>Référence FNE</th>
+            <th>Date</th>
+            <th>Client</th>
+            <th>Mode de paiement</th>
+            <th>Montant</th>
+            <th>Statut FNE</th>
+            <th>Fichier source</th>
+        </tr>
+        </thead>
+        <tbody>
+        <tr th:each="fa : ${factures}">
+            <td th:text="${fa.numFacture}"></td>
+            <td th:text="${fa.referenceFNE}"></td>
+            <td th:text="${fa.dateFacture != null ? #temporals.format(fa.dateFacture, 'dd/MM/yyyy') : ''}"></td>
+            <td th:text="${fa.nomClient}"></td>
+            <td th:text="${fa.modePaiement}"></td>
+            <td th:text="${fa.montant}"></td>
+            <td th:text="${fa.statutFNE}"></td>
+            <td th:text="${fa.nomFichierSource}"></td>
+        </tr>
+        </tbody>
+    </table>
+</body>
+</html>

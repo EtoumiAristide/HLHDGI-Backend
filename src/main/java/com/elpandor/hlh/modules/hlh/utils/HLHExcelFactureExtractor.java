@@ -13,11 +13,14 @@ import java.util.List;
 
 public class HLHExcelFactureExtractor {
 
-    public List<FacturePayload> extractFacture(InputStream is, Integer indexLectureFichier) throws IOException {
+    private String typeFacture = "";
+
+    public List<FacturePayload> extractFacture(InputStream is, Integer indexLectureFichier, String typeFacture) throws IOException {
 
         List<FacturePayload> factures = new ArrayList<>();
 
         Workbook workbook = new XSSFWorkbook(is);
+        this.typeFacture = typeFacture;
 
         for (int i = indexLectureFichier; i < workbook.getNumberOfSheets(); i++) {
             Sheet sheet = workbook.getSheetAt(i); // Première feuille
@@ -190,7 +193,7 @@ public class HLHExcelFactureExtractor {
             }
 
             // Prix unitaire HT (colonne D)
-            Cell prixCell = row.getCell(3);
+            Cell prixCell = !typeFacture.equalsIgnoreCase("BORDEREAU_ACHAT") ? row.getCell(3) : row.getCell(4);
 //            System.out.println("prixCell " + prixCell);
             if (prixCell != null) {
                 if (prixCell.getCellType() == CellType.NUMERIC) {
@@ -205,7 +208,7 @@ public class HLHExcelFactureExtractor {
             }
 
             // Montant HT (colonne E)
-            Cell montantCell = row.getCell(4);
+            Cell montantCell = !typeFacture.equalsIgnoreCase("BORDEREAU_ACHAT") ? row.getCell(4) : row.getCell(5);
             if (montantCell != null) {
                 if (montantCell.getCellType() == CellType.NUMERIC) {
                     ligne.setMontantHT(montantCell.getNumericCellValue());
@@ -216,6 +219,13 @@ public class HLHExcelFactureExtractor {
                         ligne.setMontantHT(0);
                     }
                 }
+            }
+
+            // Montant HT (colonne D)
+            Cell unitCell = typeFacture.equalsIgnoreCase("BORDEREAU_ACHAT") ? row.getCell(3) : null;
+            ligne.setUnite("");
+            if (unitCell != null && unitCell.getCellType() == CellType.STRING) {
+                ligne.setUnite(unitCell.getStringCellValue().trim());
             }
 
             lignes.add(ligne);
@@ -240,29 +250,29 @@ public class HLHExcelFactureExtractor {
                     if ("H.T".equalsIgnoreCase(cellValue)) {
                         foundTotalSection = true;
                         // Montant HT (colonne E)
-                        Cell htCell = row.getCell(4);
+                        Cell htCell = !typeFacture.equalsIgnoreCase("BORDEREAU_ACHAT") ? row.getCell(4) : row.getCell(5);
                         if (htCell != null && (htCell.getCellType() == CellType.NUMERIC || htCell.getCellType() == CellType.FORMULA)) {
                             totaux.setHt(Double.parseDouble(decimalFormat.format(htCell.getNumericCellValue())));
                         }
                     } else if ("TDT".equalsIgnoreCase(cellValue)) {
                         // Base TDT (colonne D)
-                        Cell baseCell = row.getCell(3);
+                        Cell baseCell = !typeFacture.equalsIgnoreCase("BORDEREAU_ACHAT") ? row.getCell(3) : row.getCell(4);
                         if (baseCell != null && (baseCell.getCellType() == CellType.NUMERIC || baseCell.getCellType() == CellType.FORMULA)) {
                             tdt.setBase(Double.parseDouble(decimalFormat.format(baseCell.getNumericCellValue())));
                         }
                         // Montant TDT (colonne E)
-                        Cell montantCell = row.getCell(4);
+                        Cell montantCell = !typeFacture.equalsIgnoreCase("BORDEREAU_ACHAT") ? row.getCell(4) : row.getCell(5);
                         if (montantCell != null && (montantCell.getCellType() == CellType.NUMERIC || montantCell.getCellType() == CellType.FORMULA)) {
                             tdt.setMontant(Double.parseDouble(decimalFormat.format(montantCell.getNumericCellValue())));
                         }
                     } else if ("TCN".equalsIgnoreCase(cellValue) || "Taxe communale".equalsIgnoreCase(cellValue)) {
                         // Base TCN (colonne D)
-                        Cell baseCell = row.getCell(3);
+                        Cell baseCell = !typeFacture.equalsIgnoreCase("BORDEREAU_ACHAT") ? row.getCell(3) : row.getCell(4);
                         if (baseCell != null && (baseCell.getCellType() == CellType.NUMERIC || baseCell.getCellType() == CellType.FORMULA)) {
                             tcn.setBase(Double.parseDouble(decimalFormat.format(baseCell.getNumericCellValue())));
                         }
                         // Montant TDT (colonne E)
-                        Cell montantCell = row.getCell(4);
+                        Cell montantCell = !typeFacture.equalsIgnoreCase("BORDEREAU_ACHAT") ? row.getCell(4) : row.getCell(5);
                         if (montantCell != null && (montantCell.getCellType() == CellType.NUMERIC || montantCell.getCellType() == CellType.FORMULA)) {
                             tcn.setMontant(Double.parseDouble(decimalFormat.format(montantCell.getNumericCellValue())));
                         }
@@ -272,24 +282,24 @@ public class HLHExcelFactureExtractor {
 //                            tva.setTaux(18.0);
 //                        }
                         // Base TVA (colonne D)
-                        Cell baseCell = row.getCell(3);
+                        Cell baseCell = !typeFacture.equalsIgnoreCase("BORDEREAU_ACHAT") ? row.getCell(3) : row.getCell(4);
                         if (baseCell != null && (baseCell.getCellType() == CellType.NUMERIC || baseCell.getCellType() == CellType.FORMULA)) {
                             tva.setBase(Double.parseDouble(decimalFormat.format(baseCell.getNumericCellValue())));
                         }
                         // Montant TVA (colonne E)
-                        Cell montantCell = row.getCell(4);
+                        Cell montantCell = !typeFacture.equalsIgnoreCase("BORDEREAU_ACHAT") ? row.getCell(4) : row.getCell(5);
                         if (montantCell != null && (montantCell.getCellType() == CellType.NUMERIC || montantCell.getCellType() == CellType.FORMULA)) {
                             tva.setMontant(Double.parseDouble(decimalFormat.format(montantCell.getNumericCellValue())));
                         }
                     } else if ("Montant TTC".equalsIgnoreCase(cellValue)) {
                         // Montant TTC (colonne E)
-                        Cell ttcCell = row.getCell(4);
+                        Cell ttcCell = !typeFacture.equalsIgnoreCase("BORDEREAU_ACHAT") ? row.getCell(4) : row.getCell(5);
                         if (ttcCell != null && (ttcCell.getCellType() == CellType.NUMERIC || ttcCell.getCellType() == CellType.FORMULA)) {
                             totaux.setTtc(Double.parseDouble(decimalFormat.format(ttcCell.getNumericCellValue())));
                         }
                     } else if ("Mode de paiement".equalsIgnoreCase(cellValue)) {
                         // Mode de paiement (colonne D)
-                        Cell modeCell = row.getCell(3);
+                        Cell modeCell = !typeFacture.equalsIgnoreCase("BORDEREAU_ACHAT") ? row.getCell(3) : row.getCell(4);
                         if (modeCell != null && modeCell.getCellType() == CellType.STRING) {
                             totaux.setModePaiement(modeCell.getStringCellValue().trim());
                         }

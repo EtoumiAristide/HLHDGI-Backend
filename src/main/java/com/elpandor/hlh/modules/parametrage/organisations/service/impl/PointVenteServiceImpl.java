@@ -47,6 +47,11 @@ public class PointVenteServiceImpl extends GenericServiceImpl<PointVente, Intege
     }
 
     @Override
+    public List<PointVenteDto> getAllByOrganisationName(String raisonSocial) {
+        return pointVenteRepository.findByEtablissementOrganisationRaisonSocial(raisonSocial).stream().map(this::transformEntityToDTO).toList();
+    }
+
+    @Override
     public PointVenteDto findByNom(String nom) {
         return transformEntityToDTO(pointVenteRepository.findByNom(nom));
     }

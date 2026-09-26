@@ -18,4 +18,5 @@ public interface OrganisationRepository extends JpaRepository<Organisation, Inte
     List<Organisation> getAllByMultipleId(int[] ids);
 
     Organisation findByRaisonSocial(String entreprise);
+    Organisation findByNumcc(String numcc);
 }

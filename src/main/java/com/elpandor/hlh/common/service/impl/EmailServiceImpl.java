@@ -98,4 +98,27 @@ public class EmailServiceImpl implements EmailService {
 
         return ResourceUtils.getFile(resultFilename);
     }
+
+    @Override
+    public boolean sendEmailWithAttachment(String to, String subject, String body, byte[] attachment, String attachmentFilename) throws MessagingException {
+        boolean ok = true;
+
+        MimeMessage message = mailSender.createMimeMessage();
+        message.setFrom(new InternetAddress(emailSource));
+        MimeMessageHelper helper = new MimeMessageHelper(message, true);
+
+        helper.setTo(to);
+        helper.setSubject(subject);
+        helper.setText(body, true);
+
+        try {
+            helper.addAttachment(attachmentFilename, new org.springframework.core.io.ByteArrayResource(attachment));
+        } catch (Exception e) {
+            ok = false;
+            e.printStackTrace();
+        }
+
+        mailSender.send(message);
+        return ok;
+    }
 }
