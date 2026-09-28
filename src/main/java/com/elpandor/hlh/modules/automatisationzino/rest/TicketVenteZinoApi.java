@@ -48,7 +48,7 @@ public class TicketVenteZinoApi {
 
         TraiterTicketsZinoResponse response = traiterTicketsZinoManuellementUseCase.executer(request);
 
-        HttpStatus status = response.isSucces() ? HttpStatus.OK : HttpStatus.UNPROCESSABLE_ENTITY;
+        HttpStatus status = response.isSucces() ? HttpStatus.OK : HttpStatus.INTERNAL_SERVER_ERROR;
         String message = response.isSucces()
                 ? "Traitement des tickets Zino terminé avec succès"
                 : "Traitement des tickets Zino terminé avec des erreurs";
