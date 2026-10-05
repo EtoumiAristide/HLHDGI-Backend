@@ -102,6 +102,25 @@ public class HLHExcelFactureExtractor {
                                 client.setNumeroCC(ccCell.getStringCellValue().trim());
                             }
                             // On sort après avoir trouvé le numéro CC
+                            //return;
+                        } else if ("N°TEL".equalsIgnoreCase(cellValue.trim()) || "TEL".equalsIgnoreCase(cellValue.trim())) {
+                            // Le numéro tel est dans la cellule suivante
+                            Cell telCel = row.getCell(cell.getColumnIndex() + 2);
+                            if (telCel != null) {
+                                if (telCel.getCellType() == CellType.NUMERIC)
+                                    client.setNumTel(String.valueOf(telCel.getNumericCellValue()));
+                                if (telCel.getCellType() == CellType.STRING && !telCel.getStringCellValue().trim().isEmpty())
+                                    client.setNumTel(telCel.getStringCellValue().trim());
+                            }
+                            // On sort après avoir trouvé le numéro tel
+                            //return;
+                        } else if ("EMAIL".equalsIgnoreCase(cellValue.trim())) {
+                            // L'email est dans la cellule suivante
+                            Cell emailCel = row.getCell(cell.getColumnIndex() + 2);
+                            if (emailCel != null && !emailCel.getStringCellValue().trim().isEmpty()) {
+                                client.setEmail(emailCel.getStringCellValue().trim());
+                            }
+                            // On sort après avoir trouvé l'email
                             return;
                         }
                         facture.setClientPayload(client);

@@ -49,6 +49,12 @@ public class FactureServiceImpl extends GenericServiceImpl<Facture, Integer, Fac
     }
 
     @Override
+    public List<FactureDto> findFacturesVenteByArticle(Integer pointVenteId, String libelle, String designation, int limite) {
+        return factureRepository.findFacturesVenteByArticle(pointVenteId, libelle, designation, limite)
+                .stream().map(this::transformEntityToDTO).toList();
+    }
+
+    @Override
     public List<FactureDto> findByAutomatisationFileName(String automatisationFileName) {
         return factureRepository.findByAutomatisationFileName(automatisationFileName).stream().map(this::transformEntityToDTO).toList();
         //return factureMapper.toDto(factureRepository.findByAutomatisationFileName(automatisationFileName));

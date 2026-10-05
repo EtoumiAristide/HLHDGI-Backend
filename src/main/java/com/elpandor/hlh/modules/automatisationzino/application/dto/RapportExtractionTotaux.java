@@ -16,4 +16,5 @@ public class RapportExtractionTotaux {
     private int nombreFichiersEnAttente;
     private int nombreTicketsExtraits;
     private int nombreFacturesEnvoyees;
+    private int nombreAvoirsEnvoyes;
 }

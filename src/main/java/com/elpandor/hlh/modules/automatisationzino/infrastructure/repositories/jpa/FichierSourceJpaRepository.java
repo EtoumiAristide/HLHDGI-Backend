@@ -39,5 +39,5 @@ public interface FichierSourceJpaRepository extends JpaRepository<FichierSourceE
 
     long countByStatutAndDateDerniereModificationAfter(String statut, java.time.LocalDateTime dateDerniereModification);
 
-    List<FichierSourceEntity> findByDateCreationBetweenOrderByDateCreationAsc(java.time.LocalDateTime debut, java.time.LocalDateTime fin);
+    List<FichierSourceEntity> findByDateCreationBetweenOrderByDateCreationDesc(java.time.LocalDateTime debut, java.time.LocalDateTime fin);
 }

@@ -27,9 +27,13 @@ public class TraiterTicketsZinoRequest {
      */
     private String nomFichierSource;
 
-    @NotEmpty(message = "La liste des tickets ne peut pas être vide")
+    @NotEmpty(message = "Le point de vente ne peut être vide")
     @Valid
     private String pointDeVente;
+
+    @NotEmpty(message = "Le code établissement ne peut être vide")
+    @Valid
+    private String codeEtabblissement;
 
     /**
      * Liste des tickets de vente à envoyer à la FNE (mêmes objets que ceux produits par le batch).

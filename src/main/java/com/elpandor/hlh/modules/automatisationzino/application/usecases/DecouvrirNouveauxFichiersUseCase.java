@@ -123,6 +123,7 @@ public class DecouvrirNouveauxFichiersUseCase {
                 .codeProduitPrincipal(nomFichier.replace("MANUEL_", ""))
                 .cheminAcces(null)
                 .dernierMessageErreur(null)
+                .codeEtabblissement(dto.getCodeEtabblissement())
                 .build();
     }
 

@@ -6,4 +6,6 @@ import lombok.Data;
 public class ClientPayload {
     private String nom;
     private String numeroCC;
+    private String numTel;
+    private String email;
 }

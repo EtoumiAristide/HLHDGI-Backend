@@ -21,6 +21,7 @@ public class FichierSource {
     private Integer tentativeEnvoi;
     private String dernierMessageErreur;
     private String codeProduitPrincipal;
+    private String codeEtabblissement;
 
     private String donneesExtraitesJson;
     private Boolean extractionEffectuee;

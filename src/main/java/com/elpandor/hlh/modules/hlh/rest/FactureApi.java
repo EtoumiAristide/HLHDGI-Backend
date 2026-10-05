@@ -370,6 +370,7 @@ public class FactureApi {
             }
 //
             for (FacturePayload facture : factures) {
+                System.out.println("Client: "+facture.getClientPayload());
                 facture.setReception(messageCommercial);
                 //Appel de l'api DGI
                 TokenResponse tokenResponse = null;

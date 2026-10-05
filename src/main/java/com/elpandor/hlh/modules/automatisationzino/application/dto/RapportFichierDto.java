@@ -24,4 +24,5 @@ public class RapportFichierDto {
     private String dernierMessageErreur;
     private Integer nombreTickets;
     private Integer nombreFacturesEnvoyees;
+    private Integer nombreAvoirsEnvoyes;
 }

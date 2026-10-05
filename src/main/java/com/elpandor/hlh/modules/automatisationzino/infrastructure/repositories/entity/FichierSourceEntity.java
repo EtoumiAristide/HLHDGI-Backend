@@ -51,6 +51,9 @@ public class FichierSourceEntity {
     @Column(name = "extraction_effectuee")
     private Boolean extractionEffectuee;
 
+    @Column(name = "code_etablissement")
+    private String codeEtabblissement;
+
     @PrePersist
     protected void onCreate() {
         dateCreation = LocalDateTime.now();

@@ -17,6 +17,7 @@ import java.time.LocalDate;
 @AllArgsConstructor
 public class RapportFactureDto {
     private String numFacture;
+    private String typeFacture;
     private String referenceFNE;
     private LocalDate dateFacture;
     private String nomClient;

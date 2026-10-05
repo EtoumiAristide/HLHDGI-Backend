@@ -23,9 +23,34 @@ public interface FactureRepository extends JpaRepository<Facture, Integer> {
     List<Facture> findByAutomatisationFileName(String automatisationFileName);
 
     /**
+     * Factures de vente (type_facture = 0) d'un point de vente contenant un article dont la description
+     * (dans la réponse FNE : invoice.items[].description) correspond au libellé recherché.
+     * Les plus récentes d'abord. Utilisé pour retrouver la facture originelle d'un ticket négatif (avoir).
+     */
+    @Query(value = """
+            SELECT f.*
+            FROM factures_hlh f
+            WHERE f.isdelete = false
+              AND f.type_facture = 0
+              AND f.point_vente_id = :pointVenteId
+              AND f.reponse_fne IS NOT NULL
+              AND EXISTS (
+                  SELECT 1
+                  FROM jsonb_array_elements((f.reponse_fne::jsonb) -> 'invoice' -> 'items') it
+                  WHERE LOWER(TRIM(it ->> 'description')) IN (LOWER(TRIM(:libelle)), LOWER(TRIM(:designation)))
+              )
+            ORDER BY f.date_creation DESC
+            LIMIT :limite
+            """, nativeQuery = true)
+    List<Facture> findFacturesVenteByArticle(@Param("pointVenteId") Integer pointVenteId,
+                                             @Param("libelle") String libelle,
+                                             @Param("designation") String designation,
+                                             @Param("limite") int limite);
+
+    /**
      * Factures issues de l'automatisation (Zino) sur une période, pour le rapport d'état des extractions.
      */
-    List<Facture> findByIsAutomatisationTrueAndDateCreationBetweenOrderByDateCreationAsc(Instant debut, Instant finExclusive);
+    List<Facture> findByIsAutomatisationTrueAndDateCreationBetweenOrderByDateCreationDesc(Instant debut, Instant finExclusive);
 
     /**
      * Version paginée, pour l'affichage du détail des factures dans le rapport d'extraction

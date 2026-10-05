@@ -15,6 +15,7 @@ import org.springframework.stereotype.Component;
 
 import java.io.File;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -27,6 +28,7 @@ public class FichierProcessor implements ItemProcessor<FichierSource, FichierSou
     private final TelechargerFichierUseCase telechargerFichierUseCase;
     private final TransformerFichierZinoUseCase transformerFichierZinoUseCase;
     private final EnvoyerFactureZinoUseCase envoyerFactureZinoUseCase;
+    private final EnvoyerAvoirZinoUseCase envoyerAvoirZinoUseCase;
     private final PersisterFactureUseCase persisterFactureUseCase;
     private final HistoriserEnvoiUseCase historiserEnvoiUseCase;
     private final RenommerFichierUseCase renommerFichierUseCase;
@@ -237,7 +239,20 @@ public class FichierProcessor implements ItemProcessor<FichierSource, FichierSou
 
             // 4️ENVOI À LA FNE VIA ZinoApimService (SANS JWT)
             log.info("Envoi à la FNE via ZinoApimService...");
-            resultat = envoyerFactureZinoUseCase.executer(request.getTickets(), fichierSource.getNomFichier(), request.getPointDeVente());
+            // Les tickets à montant négatif donnent lieu à une facture d'avoir, les autres à une facture de vente
+            List<TicketVenteZino> ticketsVente = request.getTickets().stream()
+                    .filter(t -> !EnvoyerAvoirZinoUseCase.estTicketNegatif(t))
+                    .toList();
+            List<TicketVenteZino> ticketsAvoir = request.getTickets().stream()
+                    .filter(EnvoyerAvoirZinoUseCase::estTicketNegatif)
+                    .toList();
+            log.info("Tickets: {} vente(s), {} avoir(s)", ticketsVente.size(), ticketsAvoir.size());
+
+            ResultatEnvoiFNE resultatVente = ticketsVente.isEmpty() ? null :
+                    envoyerFactureZinoUseCase.executer(ticketsVente, fichierSource.getNomFichier(), request.getPointDeVente());
+            ResultatEnvoiFNE resultatAvoir = ticketsAvoir.isEmpty() ? null :
+                    envoyerAvoirZinoUseCase.executer(ticketsAvoir, fichierSource.getNomFichier(), request.getPointDeVente());
+            resultat = fusionnerResultats(resultatVente, resultatAvoir);
             log.info("Envoi terminé: {}", resultat.getMessage());
 
             // 5 ️PERSISTANCE
@@ -350,5 +365,27 @@ public class FichierProcessor implements ItemProcessor<FichierSource, FichierSou
         }
 
         return resultat;
+    }
+
+    /**
+     * Fusionne le résultat d'envoi des factures de vente et celui des avoirs.
+     * Le succès global exige que chaque volet exécuté ait réussi.
+     */
+    private ResultatEnvoiFNE fusionnerResultats(ResultatEnvoiFNE vente, ResultatEnvoiFNE avoir) {
+        if (avoir == null) return vente;
+        if (vente == null) return avoir;
+
+        List<Map<String, String>> liens = new ArrayList<>();
+        if (vente.getLiensFactureFNE() != null) liens.addAll(vente.getLiensFactureFNE());
+        if (avoir.getLiensFactureFNE() != null) liens.addAll(avoir.getLiensFactureFNE());
+
+        return ResultatEnvoiFNE.builder()
+                .succes(vente.isSucces() && avoir.isSucces())
+                .idTransaction(vente.getIdTransaction())
+                .codeErreur((vente.getCodeErreur() != null ? vente.getCodeErreur() : "") + (avoir.getCodeErreur() != null ? avoir.getCodeErreur() : ""))
+                .message(vente.getMessage() + " | " + avoir.getMessage())
+                .details(vente.getDetails() + " | " + avoir.getDetails())
+                .liensFactureFNE(liens)
+                .build();
     }
 }

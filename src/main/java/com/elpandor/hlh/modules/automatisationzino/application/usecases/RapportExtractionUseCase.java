@@ -5,6 +5,7 @@ import com.elpandor.hlh.modules.automatisationzino.domain.model.FichierSource;
 import com.elpandor.hlh.modules.automatisationzino.domain.repository.FichierSourceRepository;
 import com.elpandor.hlh.modules.automatisationzino.domain.repository.TicketVenteRepository;
 import com.elpandor.hlh.modules.hlh.model.Facture;
+import com.elpandor.hlh.modules.hlh.model.TypeFacture;
 import com.elpandor.hlh.modules.hlh.repository.FactureRepository;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -68,14 +69,19 @@ public class RapportExtractionUseCase {
         // conformément à l'ajustement fait sur le backfill (voir échange précédent).
         List<Facture> facturesAutomatisation = recupererFacturesAutomatisation(request);
 
+        // Factures de vente et avoirs sont comptés séparément
         Map<String, Long> nombreFacturesParFichier = facturesAutomatisation.stream()
-                .filter(f -> f.getAutomatisationFileName() != null)
+                .filter(f -> f.getAutomatisationFileName() != null && !estAvoir(f))
+                .collect(Collectors.groupingBy(Facture::getAutomatisationFileName, Collectors.counting()));
+        Map<String, Long> nombreAvoirsParFichier = facturesAutomatisation.stream()
+                .filter(f -> f.getAutomatisationFileName() != null && estAvoir(f))
                 .collect(Collectors.groupingBy(Facture::getAutomatisationFileName, Collectors.counting()));
 
         List<RapportFichierDto> fichiersDto = new ArrayList<>();
         for (FichierSource fs : fichiersSource) {
             int nbTickets = ticketVenteRepository.findByNomFichierSource(fs.getNomFichier()).size();
             long nbFactures = nombreFacturesParFichier.getOrDefault(fs.getNomFichier(), 0L);
+            long nbAvoirs = nombreAvoirsParFichier.getOrDefault(fs.getNomFichier(), 0L);
 
             fichiersDto.add(RapportFichierDto.builder()
                     .id(fs.getId())
@@ -87,6 +93,7 @@ public class RapportExtractionUseCase {
                     .dernierMessageErreur(fs.getDernierMessageErreur())
                     .nombreTickets(nbTickets)
                     .nombreFacturesEnvoyees((int) nbFactures)
+                    .nombreAvoirsEnvoyes((int) nbAvoirs)
                     .build());
         }
 
@@ -96,7 +103,8 @@ public class RapportExtractionUseCase {
                 .nombreFichiersErreur((int) fichiersDto.stream().filter(f -> f.getStatut() != null && f.getStatut().toUpperCase().contains("ERROR")).count())
                 .nombreFichiersEnAttente((int) fichiersDto.stream().filter(f -> "PENDING".equalsIgnoreCase(f.getStatut())).count())
                 .nombreTicketsExtraits(fichiersDto.stream().mapToInt(RapportFichierDto::getNombreTickets).sum())
-                .nombreFacturesEnvoyees(facturesAutomatisation.size())
+                .nombreFacturesEnvoyees((int) facturesAutomatisation.stream().filter(f -> !estAvoir(f)).count())
+                .nombreAvoirsEnvoyes((int) facturesAutomatisation.stream().filter(this::estAvoir).count())
                 .build();
 
         return RapportExtractionResponse.builder()
@@ -136,7 +144,7 @@ public class RapportExtractionUseCase {
         java.time.Instant debut = request.getDateDebut().atStartOfDay(java.time.ZoneId.systemDefault()).toInstant();
         java.time.Instant fin = request.getDateFin().plusDays(1).atStartOfDay(java.time.ZoneId.systemDefault()).toInstant();
 
-        return factureRepository.findByIsAutomatisationTrueAndDateCreationBetweenOrderByDateCreationAsc(debut, fin);
+        return factureRepository.findByIsAutomatisationTrueAndDateCreationBetweenOrderByDateCreationDesc(debut, fin);
     }
 
     /**
@@ -146,6 +154,20 @@ public class RapportExtractionUseCase {
         return recupererFacturesAutomatisation(request).stream()
                 .map(this::versRapportFactureDto)
                 .collect(Collectors.toList());
+    }
+
+    private boolean estAvoir(Facture facture) {
+        return facture.getTypeFacture() == TypeFacture.FACTURE_AVOIR;
+    }
+
+    private Double lireMontant(JsonNode invoice) {
+        for (String champ : new String[]{"totalDue", "amount"}) {
+            JsonNode n = invoice.path(champ);
+            if (!n.isMissingNode() && !n.isNull() && !n.asText().isBlank()) {
+                return n.asDouble();
+            }
+        }
+        return null;
     }
 
     private RapportFactureDto versRapportFactureDto(Facture facture) {
@@ -158,11 +180,7 @@ public class RapportExtractionUseCase {
             try {
                 JsonNode root = objectMapper.readTree(facture.getReponseFNE());
                 JsonNode invoice = root.path("invoice");
-                if (invoice.has("totalDue")) {
-                    montant = invoice.path("totalDue").asDouble();
-                } else if (invoice.has("amount")) {
-                    montant = invoice.path("amount").asDouble();
-                }
+                montant = lireMontant(invoice);
                 if (invoice.has("status")) {
                     statutFNE = invoice.path("status").asText();
                 }
@@ -177,13 +195,29 @@ public class RapportExtractionUseCase {
             }
         }
 
+        // Avoir : si la réponse FNE ne porte pas le montant, repli sur la facture d'origine (dataSend)
+        if (montant == null && facture.getTypeFacture() == TypeFacture.FACTURE_AVOIR
+                && facture.getDataSend() != null && !facture.getDataSend().isBlank()) {
+            try {
+                montant = lireMontant(objectMapper.readTree(facture.getDataSend()).path("invoice"));
+            } catch (Exception e) {
+                log.debug("Impossible de parser dataSend pour l'avoir {}: {}", facture.getNumFacture(), e.getMessage());
+            }
+        }
+
+        // Un avoir est affiché en négatif
+        if (montant != null && facture.getTypeFacture() == TypeFacture.FACTURE_AVOIR) {
+            montant = -Math.abs(montant);
+        }
+
         return RapportFactureDto.builder()
                 .numFacture(facture.getNumFacture())
+                .typeFacture(facture.getTypeFacture() != null ? facture.getTypeFacture().name() : null)
                 .referenceFNE(facture.getReference())
                 .dateFacture(facture.getDateFacture())
                 .nomClient(facture.getNomClient())
                 .modePaiement(facture.getModePaiement() != null ? facture.getModePaiement().toString() : null)
-                .montant(Double.valueOf(String.format("%.0f",montant)))
+                .montant(montant != null ? (double) Math.round(montant) : null)
                 .statutFNE(statutFNE)
                 .referenceFNE(referenceFNE)
                 .lienFacture(lienFacture)
@@ -205,7 +239,7 @@ public class RapportExtractionUseCase {
             // ----- Feuille Synthèse -----
             Sheet feuilleSynthese = workbook.createSheet("Synthèse fichiers");
             String[] entetesSynthese = {"Fichier", "Statut", "Date création", "Dernière modification",
-                    "Tentatives", "Tickets extraits", "Factures envoyées", "Dernier message d'erreur"};
+                    "Tentatives", "Tickets extraits", "Factures envoyées", "Avoirs envoyés", "Dernier message d'erreur"};
             Row enteteRow = feuilleSynthese.createRow(0);
             for (int i = 0; i < entetesSynthese.length; i++) {
                 Cell cell = enteteRow.createCell(i);
@@ -222,7 +256,8 @@ public class RapportExtractionUseCase {
                 row.createCell(4).setCellValue(f.getTentativeEnvoi() != null ? f.getTentativeEnvoi() : 0);
                 row.createCell(5).setCellValue(f.getNombreTickets() != null ? f.getNombreTickets() : 0);
                 row.createCell(6).setCellValue(f.getNombreFacturesEnvoyees() != null ? f.getNombreFacturesEnvoyees() : 0);
-                row.createCell(7).setCellValue(f.getDernierMessageErreur() != null ? f.getDernierMessageErreur() : "");
+                row.createCell(7).setCellValue(f.getNombreAvoirsEnvoyes() != null ? f.getNombreAvoirsEnvoyes() : 0);
+                row.createCell(8).setCellValue(f.getDernierMessageErreur() != null ? f.getDernierMessageErreur() : "");
             }
             for (int i = 0; i < entetesSynthese.length; i++) {
                 feuilleSynthese.autoSizeColumn(i);
@@ -230,7 +265,7 @@ public class RapportExtractionUseCase {
 
             // ----- Feuille Détail factures -----
             Sheet feuilleFactures = workbook.createSheet("Détail factures");
-            String[] entetesFactures = {"N° Facture", "Référence FNE", "Date", "Client", "Mode de paiement",
+            String[] entetesFactures = {"N° Facture", "Type", "Référence FNE", "Date", "Client", "Mode de paiement",
                     "Montant", "Statut FNE", "Fichier source"};
             Row enteteFactRow = feuilleFactures.createRow(0);
             for (int i = 0; i < entetesFactures.length; i++) {
@@ -242,13 +277,14 @@ public class RapportExtractionUseCase {
             for (RapportFactureDto f : factures) {
                 Row row = feuilleFactures.createRow(rowIdxF++);
                 row.createCell(0).setCellValue(f.getNumFacture());
-                row.createCell(1).setCellValue(f.getReferenceFNE());
-                row.createCell(2).setCellValue(f.getDateFacture() != null ? f.getDateFacture().format(FMT_DATE) : "");
-                row.createCell(3).setCellValue(f.getNomClient());
-                row.createCell(4).setCellValue(f.getModePaiement());
-                row.createCell(5).setCellValue(f.getMontant() != null ? f.getMontant() : 0.0);
-                row.createCell(6).setCellValue(f.getStatutFNE());
-                row.createCell(7).setCellValue(f.getNomFichierSource());
+                row.createCell(1).setCellValue(f.getTypeFacture());
+                row.createCell(2).setCellValue(f.getReferenceFNE());
+                row.createCell(3).setCellValue(f.getDateFacture() != null ? f.getDateFacture().format(FMT_DATE) : "");
+                row.createCell(4).setCellValue(f.getNomClient());
+                row.createCell(5).setCellValue(f.getModePaiement());
+                row.createCell(6).setCellValue(f.getMontant() != null ? f.getMontant() : 0.0);
+                row.createCell(7).setCellValue(f.getStatutFNE());
+                row.createCell(8).setCellValue(f.getNomFichierSource());
             }
             for (int i = 0; i < entetesFactures.length; i++) {
                 feuilleFactures.autoSizeColumn(i);
@@ -320,9 +356,9 @@ public class RapportExtractionUseCase {
             XWPFRun resumeRun = resume.createRun();
             RapportExtractionTotaux t = rapport.getTotaux();
             resumeRun.setText(String.format(
-                    "%d fichier(s) traité(s) - %d en succès, %d en erreur, %d en attente - %d ticket(s) extrait(s) - %d facture(s) envoyée(s)",
+                    "%d fichier(s) traité(s) - %d en succès, %d en erreur, %d en attente - %d ticket(s) extrait(s) - %d facture(s) envoyée(s) - %d avoir(s) envoyé(s)",
                     t.getNombreFichiers(), t.getNombreFichiersSucces(), t.getNombreFichiersErreur(),
-                    t.getNombreFichiersEnAttente(), t.getNombreTicketsExtraits(), t.getNombreFacturesEnvoyees()));
+                    t.getNombreFichiersEnAttente(), t.getNombreTicketsExtraits(), t.getNombreFacturesEnvoyees(), t.getNombreAvoirsEnvoyes()));
 
             document.createParagraph();
 
@@ -332,7 +368,7 @@ public class RapportExtractionUseCase {
             titreSyntheseRun.setBold(true);
             titreSyntheseRun.setFontSize(13);
 
-            String[] entetesSynthese = {"Fichier", "Statut", "Date création", "Tentatives", "Tickets", "Factures envoyées"};
+            String[] entetesSynthese = {"Fichier", "Statut", "Date création", "Tentatives", "Tickets", "Factures envoyées", "Avoirs envoyés"};
             XWPFTable tableSynthese = document.createTable(rapport.getFichiers().size() + 1, entetesSynthese.length);
             for (int i = 0; i < entetesSynthese.length; i++) {
                 remplirCelluleEntete(tableSynthese.getRow(0).getCell(i), entetesSynthese[i]);
@@ -346,6 +382,7 @@ public class RapportExtractionUseCase {
                 row.getCell(3).setText(String.valueOf(f.getTentativeEnvoi() != null ? f.getTentativeEnvoi() : 0));
                 row.getCell(4).setText(String.valueOf(f.getNombreTickets() != null ? f.getNombreTickets() : 0));
                 row.getCell(5).setText(String.valueOf(f.getNombreFacturesEnvoyees() != null ? f.getNombreFacturesEnvoyees() : 0));
+                row.getCell(6).setText(String.valueOf(f.getNombreAvoirsEnvoyes() != null ? f.getNombreAvoirsEnvoyes() : 0));
             }
 
             document.createParagraph();
@@ -356,7 +393,7 @@ public class RapportExtractionUseCase {
             titreDetailRun.setBold(true);
             titreDetailRun.setFontSize(13);
 
-            String[] entetesFactures = {"N° Facture", "Référence FNE", "Date", "Client", "Mode paiement", "Montant", "Statut FNE"};
+            String[] entetesFactures = {"N° Facture", "Type", "Référence FNE", "Date", "Client", "Mode paiement", "Montant", "Statut FNE"};
             XWPFTable tableFactures = document.createTable(factures.size() + 1, entetesFactures.length);
             for (int i = 0; i < entetesFactures.length; i++) {
                 remplirCelluleEntete(tableFactures.getRow(0).getCell(i), entetesFactures[i]);
@@ -365,12 +402,13 @@ public class RapportExtractionUseCase {
             for (RapportFactureDto f : factures) {
                 XWPFTableRow row = tableFactures.getRow(rf++);
                 row.getCell(0).setText(f.getNumFacture());
-                row.getCell(1).setText(f.getReferenceFNE());
-                row.getCell(2).setText(f.getDateFacture() != null ? f.getDateFacture().format(FMT_DATE) : "");
-                row.getCell(3).setText(f.getNomClient());
-                row.getCell(4).setText(f.getModePaiement());
-                row.getCell(5).setText(f.getMontant() != null ? String.valueOf(f.getMontant()) : "");
-                row.getCell(6).setText(f.getStatutFNE());
+                row.getCell(1).setText(f.getTypeFacture());
+                row.getCell(2).setText(f.getReferenceFNE());
+                row.getCell(3).setText(f.getDateFacture() != null ? f.getDateFacture().format(FMT_DATE) : "");
+                row.getCell(4).setText(f.getNomClient());
+                row.getCell(5).setText(f.getModePaiement());
+                row.getCell(6).setText(f.getMontant() != null ? String.valueOf(f.getMontant()) : "");
+                row.getCell(7).setText(f.getStatutFNE());
             }
 
             ByteArrayOutputStream out = new ByteArrayOutputStream();

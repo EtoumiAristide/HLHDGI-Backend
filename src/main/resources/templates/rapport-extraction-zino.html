@@ -31,6 +31,7 @@
         <span>En attente : <strong th:text="${totaux.nombreFichiersEnAttente}">0</strong></span>
         <span>Tickets extraits : <strong th:text="${totaux.nombreTicketsExtraits}">0</strong></span>
         <span>Factures envoyées : <strong th:text="${totaux.nombreFacturesEnvoyees}">0</strong></span>
+        <span>Avoirs envoyés : <strong th:text="${totaux.nombreAvoirsEnvoyes}">0</strong></span>
     </div>
 
     <h2>Synthèse par fichier</h2>
@@ -44,6 +45,7 @@
             <th>Tentatives</th>
             <th>Tickets extraits</th>
             <th>Factures envoyées</th>
+            <th>Avoirs envoyés</th>
             <th>Dernier message d'erreur</th>
         </tr>
         </thead>
@@ -56,6 +58,7 @@
             <td th:text="${f.tentativeEnvoi}"></td>
             <td th:text="${f.nombreTickets}"></td>
             <td th:text="${f.nombreFacturesEnvoyees}"></td>
+            <td th:text="${f.nombreAvoirsEnvoyes}"></td>
             <td th:text="${f.dernierMessageErreur}"></td>
         </tr>
         </tbody>
@@ -66,6 +69,7 @@
         <thead>
         <tr>
             <th>N° Facture</th>
+            <th>Type</th>
             <th>Référence FNE</th>
             <th>Date</th>
             <th>Client</th>
@@ -78,6 +82,7 @@
         <tbody>
         <tr th:each="fa : ${factures}">
             <td th:text="${fa.numFacture}"></td>
+            <td th:text="${fa.typeFacture}"></td>
             <td th:text="${fa.referenceFNE}"></td>
             <td th:text="${fa.dateFacture != null ? #temporals.format(fa.dateFacture, 'dd/MM/yyyy') : ''}"></td>
             <td th:text="${fa.nomClient}"></td>

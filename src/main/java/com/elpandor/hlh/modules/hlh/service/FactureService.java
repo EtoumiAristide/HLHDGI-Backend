@@ -12,4 +12,5 @@ public interface FactureService extends GenericService<Facture, Integer, Facture
     public Page<FactureDto> findByEntreprise(Pageable pageable, String entreprise);
     public FactureDto findByNumFactureFNE(String numFactureFNE);
     public List<FactureDto> findByAutomatisationFileName(String automatisationFileName);
+    public List<FactureDto> findFacturesVenteByArticle(Integer pointVenteId, String libelle, String designation, int limite);
 }

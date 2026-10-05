@@ -78,7 +78,7 @@ public class FichierSourceRepositoryImpl implements FichierSourceRepository {
 
     @Override
     public List<FichierSource> findByPeriode(java.time.LocalDateTime debut, java.time.LocalDateTime fin) {
-        return jpaRepository.findByDateCreationBetweenOrderByDateCreationAsc(debut, fin).stream()
+        return jpaRepository.findByDateCreationBetweenOrderByDateCreationDesc(debut, fin).stream()
                 .map(mapper::toDomain)
                 .collect(Collectors.toList());
     }
