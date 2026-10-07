@@ -1,5 +1,6 @@
 package com.elpandor.hlh.modules.automatisationzino.application.dto;
 
+import com.elpandor.hlh.modules.impressionzino.application.dto.TicketAImprimer;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -22,4 +23,10 @@ public class ResultatEnvoiFNE {
     private String idTransaction;
     private String details;
     private List<Map<String, String>> liensFactureFNE;
+
+    /**
+     * Une entrée par facture acceptée par la FNE, avec le ticket à imprimer (payload JSON).
+     * Alimente la file d'impression ({@code PrintJobService}) ; vide ou {@code null} si rien à imprimer.
+     */
+    private List<TicketAImprimer> facturesImprimables;
 }

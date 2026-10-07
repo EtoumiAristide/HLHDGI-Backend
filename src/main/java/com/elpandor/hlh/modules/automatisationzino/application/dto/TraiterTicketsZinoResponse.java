@@ -26,4 +26,10 @@ public class TraiterTicketsZinoResponse {
     private String details;
     private long tempsExecutionMs;
     private List<Map<String, String>> liensFactureFNE;
+
+    /**
+     * Nombre de tickets placés en file d'impression pour le point de vente (impression asynchrone :
+     * la réponse n'attend pas l'impression physique, suivie via {@code /api/v1/impression/jobs}).
+     */
+    private int ticketsEnFileImpression;
 }

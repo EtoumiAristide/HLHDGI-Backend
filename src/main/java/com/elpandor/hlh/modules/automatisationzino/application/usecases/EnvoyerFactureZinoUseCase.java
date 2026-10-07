@@ -3,15 +3,18 @@ package com.elpandor.hlh.modules.automatisationzino.application.usecases;
 import com.elpandor.hlh.modules.automatisationzino.application.dto.ResultatEnvoiFNE;
 import com.elpandor.hlh.modules.automatisationzino.domain.exception.EnvoiFNEException;
 import com.elpandor.hlh.modules.automatisationzino.infrastructure.parser.TicketVenteZino;
+import com.elpandor.hlh.modules.hlh.model.TypeFacture;
 import com.elpandor.hlh.modules.hlh.model.dto.FactureDto;
 import com.elpandor.hlh.modules.hlh.model.dto.payload.TokenResponse;
 import com.elpandor.hlh.modules.hlh.model.dto.payload.hlh.FacturePayload;
 import com.elpandor.hlh.modules.hlh.service.ApimService;
 import com.elpandor.hlh.modules.hlh.service.FactureService;
 import com.elpandor.hlh.modules.hlh.service.impl.ZinoApimServiceImpl;
+import com.elpandor.hlh.modules.impressionzino.application.dto.TicketAImprimer;
 import com.elpandor.hlh.modules.parametrage.organisations.dto.PointVenteDto;
 import com.elpandor.hlh.modules.parametrage.organisations.service.PointVenteService;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.google.gson.Gson;
 import com.google.gson.JsonObject;
 import io.swagger.v3.core.util.Json;
@@ -86,6 +89,8 @@ public class EnvoyerFactureZinoUseCase {
                 if (pointVente != null) pointVenteDtoList.add(pointVente);
             }
             List<Map<String, String>> liensFacture = new ArrayList<>();
+            // Tickets à imprimer : une entrée par facture ACCEPTÉE par la FNE (voir PrintJobService)
+            List<TicketAImprimer> facturesImprimables = new ArrayList<>();
 
             for (FacturePayload facture : facturePayloads) {
                 try {
@@ -146,6 +151,8 @@ public class EnvoyerFactureZinoUseCase {
                             dataFacture.put("referenceFNE", jsonObject.get("reference").getAsString());
                             dataFacture.put("lienFNE", jsonObject.get("token").getAsString());
                             liensFacture.add(dataFacture);
+
+                            ajouterTicketAImprimer(facturesImprimables, facture, dataFacture);
                         }
 
                     } else {
@@ -184,6 +191,7 @@ public class EnvoyerFactureZinoUseCase {
             if (nomPointDeVente != null) {
                 resultat.setLiensFactureFNE(liensFacture);
             }
+            resultat.setFacturesImprimables(facturesImprimables);
 
             log.info("Résultat final: {}", resultat.getMessage());
             return resultat;
@@ -191,6 +199,29 @@ public class EnvoyerFactureZinoUseCase {
         } catch (Exception e) {
             log.error("Erreur lors de l'envoi à la FNE: {}", e.getMessage(), e);
             throw new EnvoiFNEException("Erreur d'envoi à la FNE: " + e.getMessage(), e);
+        }
+    }
+
+    /**
+     * Construit le ticket à imprimer : la facture envoyée à la FNE (lignes, totaux, point de vente, entreprise)
+     * complétée de la référence et du lien de vérification FNE (QR code). Le JSON a le format du {@code FactureDto}
+     * de l'application desktop ; les champs inutiles à l'impression y sont ignorés.
+     * <p>
+     * Ne doit JAMAIS faire échouer l'envoi : la facture est déjà acceptée et enregistrée, une erreur ici est
+     * seulement journalisée (le ticket pourra être régénéré depuis la facture enregistrée).
+     */
+    private void ajouterTicketAImprimer(List<TicketAImprimer> cible, FacturePayload facture, Map<String, String> lienFne) {
+        try {
+            ObjectNode ticket = objectMapper.valueToTree(facture);
+            ticket.put("referenceFNE", lienFne.get("referenceFNE"));
+            ticket.put("lienFNE", lienFne.get("lienFNE"));
+            cible.add(new TicketAImprimer(
+                    facture.getNumeroFacture(),
+                    TypeFacture.FACTURE_VENTE.name(),
+                    objectMapper.writeValueAsString(ticket)));
+        } catch (Exception e) {
+            log.error("Ticket non préparé pour l'impression de la facture {} (déjà acceptée par la FNE): {}",
+                    facture.getNumeroFacture(), e.getMessage(), e);
         }
     }
 }

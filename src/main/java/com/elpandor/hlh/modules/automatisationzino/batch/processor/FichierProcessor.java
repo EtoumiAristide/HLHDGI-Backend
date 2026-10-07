@@ -6,6 +6,7 @@ import com.elpandor.hlh.modules.automatisationzino.application.usecases.*;
 import com.elpandor.hlh.modules.automatisationzino.domain.model.FichierSource;
 import com.elpandor.hlh.modules.automatisationzino.domain.repository.FichierSourceRepository;
 import com.elpandor.hlh.modules.automatisationzino.infrastructure.parser.TicketVenteZino;
+import com.elpandor.hlh.modules.impressionzino.application.dto.TicketAImprimer;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -310,10 +311,14 @@ public class FichierProcessor implements ItemProcessor<FichierSource, FichierSou
             }
 
             long executionTime = System.currentTimeMillis() - startTime;
+            // Les factures déjà acceptées par la FNE avant l'incident (ex. échec de la persistance locale)
+            // doivent quand même être imprimées : on conserve leurs tickets dans le résultat d'échec.
+            List<TicketAImprimer> dejaAcceptees = resultat != null ? resultat.getFacturesImprimables() : null;
             resultat = ResultatEnvoiFNE.builder()
                     .succes(false)
                     .codeErreur("EXCEPTION")
                     .message(e.getMessage())
+                    .facturesImprimables(dejaAcceptees)
                     .build();
 
             historiserEnvoiUseCase.executer(
@@ -386,6 +391,8 @@ public class FichierProcessor implements ItemProcessor<FichierSource, FichierSou
                 .message(vente.getMessage() + " | " + avoir.getMessage())
                 .details(vente.getDetails() + " | " + avoir.getDetails())
                 .liensFactureFNE(liens)
+                // Seules les factures de vente sont imprimées (les avoirs n'ont pas de modèle de ticket)
+                .facturesImprimables(vente.getFacturesImprimables())
                 .build();
     }
 }

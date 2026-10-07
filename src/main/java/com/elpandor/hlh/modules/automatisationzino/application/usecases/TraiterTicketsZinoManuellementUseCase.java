@@ -5,7 +5,11 @@ import com.elpandor.hlh.modules.automatisationzino.application.dto.TraiterTicket
 import com.elpandor.hlh.modules.automatisationzino.application.dto.TraiterTicketsZinoResponse;
 import com.elpandor.hlh.modules.automatisationzino.batch.processor.FichierProcessor;
 import com.elpandor.hlh.modules.automatisationzino.domain.exception.EnvoiFNEException;
+import com.elpandor.hlh.modules.automatisationzino.domain.model.FichierSource;
+import com.elpandor.hlh.modules.automatisationzino.domain.repository.FichierSourceRepository;
 import com.elpandor.hlh.modules.automatisationzino.infrastructure.parser.TicketVenteZino;
+import com.elpandor.hlh.modules.impressionzino.application.PrintJobService;
+import com.elpandor.hlh.modules.impressionzino.application.dto.TicketAImprimer;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -14,6 +18,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
+import java.util.Optional;
 
 /**
  * Orchestration du même pipeline métier que le batch ({@code FichierProcessor}),
@@ -38,6 +43,8 @@ public class TraiterTicketsZinoManuellementUseCase {
     private final PersisterFactureUseCase persisterFactureUseCase;
     private final HistoriserEnvoiUseCase historiserEnvoiUseCase;
     private final FichierProcessor processor;
+    private final FichierSourceRepository fichierSourceRepository;
+    private final PrintJobService printJobService;
 
     @Transactional
     public TraiterTicketsZinoResponse executer(TraiterTicketsZinoRequest request) {
@@ -49,6 +56,10 @@ public class TraiterTicketsZinoManuellementUseCase {
         log.info("Traitement manuel de {} tickets Zino (source: {})", tickets.size(), nomFichierSource);
 
         ResultatEnvoiFNE resultat = processor.manuelProcess(request);
+
+        // Impression asynchrone : on place les tickets dans la file du point de vente ; la réponse ci-dessous
+        // (message au client appelant) n'attend pas l'impression physique.
+        int ticketsEnFileImpression = planifierImpressions(request, nomFichierSource, resultat);
 
         long executionTime = System.currentTimeMillis() - startTime;
 
@@ -62,8 +73,35 @@ public class TraiterTicketsZinoManuellementUseCase {
                 .details(resultat.getDetails())
                 .tempsExecutionMs(executionTime)
                 .liensFactureFNE(resultat.getLiensFactureFNE())
+                .ticketsEnFileImpression(ticketsEnFileImpression)
                 .build();
 
+    }
+
+    /**
+     * Crée un job d'impression par facture acceptée par la FNE (même si le lot est partiellement en échec : une
+     * facture acceptée est un document fiscal réel dont le client attend le ticket).
+     * <p>
+     * Le code établissement est relu dans {@code fichiers_source}, où il a été enregistré à la réception de la
+     * requête : c'est la clé de routage vers le poste du point de vente. Un incident ici ne doit jamais faire
+     * échouer la réponse : les factures sont déjà émises, l'erreur est journalisée.
+     */
+    private int planifierImpressions(TraiterTicketsZinoRequest request, String nomFichierSource, ResultatEnvoiFNE resultat) {
+        List<TicketAImprimer> aImprimer = resultat.getFacturesImprimables();
+        if (aImprimer == null || aImprimer.isEmpty()) {
+            return 0;
+        }
+        try {
+            Optional<FichierSource> source = fichierSourceRepository.findByNomFichier(nomFichierSource);
+            String codeEtablissement = source.map(FichierSource::getCodeEtabblissement)
+                    .orElse(request.getCodeEtabblissement());
+            Long fichierSourceId = source.map(FichierSource::getId).orElse(null);
+            return printJobService.planifier(codeEtablissement, fichierSourceId, nomFichierSource, aImprimer);
+        } catch (Exception e) {
+            log.error("{} facture(s) acceptée(s) par la FNE mais impression NON planifiée (source {}) : {}",
+                    aImprimer.size(), nomFichierSource, e.getMessage(), e);
+            return 0;
+        }
     }
 
     private String resoudreNomFichierSource(String nomFourni) {

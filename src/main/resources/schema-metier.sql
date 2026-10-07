@@ -107,3 +107,56 @@ COMMENT ON COLUMN historique_envois.reponse_api IS 'Réponse complète de l''API
 COMMENT ON TABLE tickets_vente_zino IS 'Tickets de vente extraits des fichiers Zino';
 COMMENT ON TABLE repartition_paiements IS 'Répartition des paiements par mode de paiement';
 
+-- ============================================================
+-- 7. IMPRESSION DES TICKETS PAR POINT DE VENTE (module impressionzino)
+--    Les tables sont créées automatiquement par Hibernate (ddl-auto=update) ;
+--    ce script sert de référence / de déploiement manuel.
+-- ============================================================
+
+-- La colonne code_etablissement (routage de l'impression) existe dans l'entité mais manquait à ce script
+ALTER TABLE fichiers_source ADD COLUMN IF NOT EXISTS code_etablissement VARCHAR(255);
+CREATE INDEX IF NOT EXISTS idx_fichiers_code_etablissement ON fichiers_source(code_etablissement);
+
+-- File d'impression (outbox). Pas de clé étrangère vers fichiers_source : les jobs sont créés
+-- dans une transaction indépendante (REQUIRES_NEW), avant la validation de la ligne fichiers_source.
+CREATE TABLE IF NOT EXISTS print_jobs (
+    id UUID PRIMARY KEY,
+    code_etablissement VARCHAR(50) NOT NULL,
+    fichier_source_id BIGINT,
+    nom_fichier_source VARCHAR(255),
+    numero_facture VARCHAR(100) NOT NULL,
+    type_document VARCHAR(30) NOT NULL,
+    payload_json TEXT NOT NULL,
+    statut VARCHAR(20) NOT NULL,
+    tentatives INTEGER NOT NULL DEFAULT 0,
+    available_at TIMESTAMP NOT NULL,
+    lease_until TIMESTAMP,
+    agent_id VARCHAR(100),
+    imprimante VARCHAR(150),
+    dernier_message_erreur TEXT,
+    date_creation TIMESTAMP NOT NULL,
+    date_derniere_modification TIMESTAMP,
+    date_impression TIMESTAMP,
+    CONSTRAINT uk_print_jobs_numero_facture UNIQUE (numero_facture)
+);
+CREATE INDEX IF NOT EXISTS idx_print_jobs_routage ON print_jobs(code_etablissement, statut, available_at);
+CREATE INDEX IF NOT EXISTS idx_print_jobs_fichier ON print_jobs(fichier_source_id);
+
+-- Postes d'impression (un agent = une installation desktop = un code établissement)
+CREATE TABLE IF NOT EXISTS print_agents (
+    id BIGSERIAL PRIMARY KEY,
+    agent_id VARCHAR(100) NOT NULL,
+    code_etablissement VARCHAR(50) NOT NULL,
+    api_key_hash VARCHAR(64) NOT NULL,
+    actif BOOLEAN NOT NULL DEFAULT TRUE,
+    last_seen_at TIMESTAMP,
+    date_creation TIMESTAMP NOT NULL,
+    CONSTRAINT uk_print_agents_agent_id UNIQUE (agent_id)
+);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_print_agents_cle ON print_agents(api_key_hash);
+
+COMMENT ON TABLE print_jobs IS 'File d''impression des tickets : un job par facture acceptée par la FNE, routé par code_etablissement';
+COMMENT ON COLUMN print_jobs.statut IS 'PENDING, DISPATCHED, PRINTED, FAILED';
+COMMENT ON COLUMN print_jobs.lease_until IS 'Fin du bail : sans accusé de réception avant cette date, le job est remis en file';
+COMMENT ON TABLE print_agents IS 'Agents d''impression (postes des points de vente) ; la clé d''API n''est stockée que sous forme de hash SHA-256';
+
