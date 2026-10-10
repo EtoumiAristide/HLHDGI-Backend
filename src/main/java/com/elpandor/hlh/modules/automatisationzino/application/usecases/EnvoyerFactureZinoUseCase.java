@@ -215,6 +215,12 @@ public class EnvoyerFactureZinoUseCase {
             ObjectNode ticket = objectMapper.valueToTree(facture);
             ticket.put("referenceFNE", lienFne.get("referenceFNE"));
             ticket.put("lienFNE", lienFne.get("lienFNE"));
+            // Numéro du ticket Zino d'origine (numeroFacture = ZINO_<ticket>_<horodatage>), imprimé sur le ticket
+            java.util.regex.Matcher m = java.util.regex.Pattern.compile("^ZINO_(.+)_\\d+$")
+                    .matcher(facture.getNumeroFacture() != null ? facture.getNumeroFacture() : "");
+            if (m.matches()) {
+                ticket.put("numeroTicket", m.group(1));
+            }
             cible.add(new TicketAImprimer(
                     facture.getNumeroFacture(),
                     TypeFacture.FACTURE_VENTE.name(),

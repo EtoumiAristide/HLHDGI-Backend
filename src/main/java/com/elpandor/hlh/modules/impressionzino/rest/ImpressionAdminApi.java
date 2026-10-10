@@ -77,7 +77,9 @@ public class ImpressionAdminApi {
                         "Statut invalide : " + statutParam + " (PENDING, DISPATCHED, PRINTED, FAILED)");
             }
         }
-        Page<PrintJobResume> resultat = printJobService.lister(code, statut, page, size).map(PrintJobResume::from);
+        String codeFiltre = (code == null || code.isBlank()
+                || "undefined".equalsIgnoreCase(code.trim()) || "null".equalsIgnoreCase(code.trim())) ? null : code;
+        Page<PrintJobResume> resultat = printJobService.lister(codeFiltre, statut, page, size).map(PrintJobResume::from);
         return Utilities.createSuccessResponse(HttpStatus.OK, resultat, "Jobs d'impression");
     }
 

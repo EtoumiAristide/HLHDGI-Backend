@@ -376,6 +376,13 @@ public class FichierProcessor implements ItemProcessor<FichierSource, FichierSou
      * Fusionne le résultat d'envoi des factures de vente et celui des avoirs.
      * Le succès global exige que chaque volet exécuté ait réussi.
      */
+    private static List<TicketAImprimer> fusionnerListes(List<TicketAImprimer> a, List<TicketAImprimer> b) {
+        List<TicketAImprimer> tous = new ArrayList<>();
+        if (a != null) tous.addAll(a);
+        if (b != null) tous.addAll(b);
+        return tous;
+    }
+
     private ResultatEnvoiFNE fusionnerResultats(ResultatEnvoiFNE vente, ResultatEnvoiFNE avoir) {
         if (avoir == null) return vente;
         if (vente == null) return avoir;
@@ -391,8 +398,7 @@ public class FichierProcessor implements ItemProcessor<FichierSource, FichierSou
                 .message(vente.getMessage() + " | " + avoir.getMessage())
                 .details(vente.getDetails() + " | " + avoir.getDetails())
                 .liensFactureFNE(liens)
-                // Seules les factures de vente sont imprimées (les avoirs n'ont pas de modèle de ticket)
-                .facturesImprimables(vente.getFacturesImprimables())
+                .facturesImprimables(fusionnerListes(vente.getFacturesImprimables(), avoir.getFacturesImprimables()))
                 .build();
     }
 }

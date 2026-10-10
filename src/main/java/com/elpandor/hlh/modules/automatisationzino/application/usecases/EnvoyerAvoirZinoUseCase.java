@@ -12,6 +12,11 @@ import com.elpandor.hlh.modules.hlh.service.FactureService;
 import com.elpandor.hlh.modules.hlh.service.impl.ZinoApimServiceImpl;
 import com.elpandor.hlh.modules.parametrage.organisations.dto.PointVenteDto;
 import com.elpandor.hlh.modules.parametrage.organisations.service.PointVenteService;
+import com.elpandor.hlh.modules.impressionzino.application.dto.TicketAImprimer;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ArrayNode;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.google.gson.Gson;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
@@ -24,6 +29,7 @@ import org.springframework.stereotype.Service;
 
 import java.time.LocalDate;
 import java.time.ZoneId;
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
@@ -48,6 +54,7 @@ public class EnvoyerAvoirZinoUseCase {
     private final ZinoApimServiceImpl zinoApimService;
     private final FactureService factureService;
     private final PointVenteService pointVenteService;
+    private final ObjectMapper objectMapper;
 
     @Value("${zino.api.entreprise}")
     private String entrepriseZino;
@@ -78,6 +85,7 @@ public class EnvoyerAvoirZinoUseCase {
         int echecs = 0;
         List<String> erreurs = new ArrayList<>();
         List<Map<String, String>> liensFacture = new ArrayList<>();
+        List<TicketAImprimer> facturesImprimables = new ArrayList<>();
 
         try {
             PointVenteDto pointVente = resoudrePointVente(nomPointDeVente);
@@ -117,9 +125,12 @@ public class EnvoyerAvoirZinoUseCase {
 
                 for (AvoirAEmettre avoir : avoirs.values()) {
                     try {
-                        Map<String, String> lien = emettreAvoir(token.getAccessToken(), ticket, avoir, pointVente, nomFichierSource);
+                        AvoirEmis emis = emettreAvoir(token.getAccessToken(), ticket, avoir, pointVente, nomFichierSource);
                         succes++;
-                        if (lien != null) liensFacture.add(lien);
+                        if (emis.lien() != null) liensFacture.add(emis.lien());
+                        if (emis.ticketImprimable() != null && nomFichierSource != null) {
+                            facturesImprimables.add(emis.ticketImprimable());
+                        }
                     } catch (Exception e) {
                         echecs++;
                         String erreur = "Ticket " + ticket.getNumTicket() + " - avoir sur facture " + avoir.originale.getNumFacture() + ": " + e.getMessage();
@@ -146,6 +157,7 @@ public class EnvoyerAvoirZinoUseCase {
                 .details(String.format("Total tickets Avoirs: %d, Factures générées: %d",
                         ticketsNegatifs.size(), succes))
                 .liensFactureFNE(liensFacture)
+                .facturesImprimables(facturesImprimables)
                 .build();
         if (echecs > 0) {
             resultat.setCodeErreur("PARTIAL_FAILURE");
@@ -255,7 +267,7 @@ public class EnvoyerAvoirZinoUseCase {
     /**
      * Envoi de l'avoir à la FNE puis persistance, sur le modèle de {@code FactureApi.saveAvoir}.
      */
-    private Map<String, String> emettreAvoir(String accessToken, TicketVenteZino ticket, AvoirAEmettre avoir,
+    private AvoirEmis emettreAvoir(String accessToken, TicketVenteZino ticket, AvoirAEmettre avoir,
                                              PointVenteDto pointVente, String nomFichierSource) {
         FactureDto originale = avoir.originale;
         Gson gson = new Gson();
@@ -285,6 +297,9 @@ public class EnvoyerAvoirZinoUseCase {
             throw new IllegalStateException("réponse FNE en échec: " + (response != null ? response.getBody() : "réponse null"));
         }
 
+        // Ticket à imprimer : construit AVANT la persistance, qui réécrit la facture originelle en facture d'avoir
+        TicketAImprimer ticketImprimable = construireTicketAvoir(ticket, avoir, pointVente, response.getBody());
+
         // Persistance (même principe que saveAvoir : copie de la facture originelle passée en FACTURE_AVOIR)
         String requeteOriginale = originale.getReponseFNE();
         LocalDate dateFacture = ticket.getDate() != null
@@ -307,10 +322,132 @@ public class EnvoyerAvoirZinoUseCase {
             Map<String, String> lien = new HashMap<>();
             lien.put("referenceFNE", json.get("reference").getAsString());
             lien.put("lienFNE", json.get("token").getAsString());
-            return lien;
+            return new AvoirEmis(lien, ticketImprimable);
         } catch (Exception e) {
             log.warn("Lien FNE de l'avoir non extractible: {}", e.getMessage());
+            return new AvoirEmis(null, ticketImprimable);
+        }
+    }
+
+    /** Résultat de l'émission d'un avoir : lien FNE et ticket à imprimer (peut être absent, sans bloquer l'avoir). */
+    private record AvoirEmis(Map<String, String> lien, TicketAImprimer ticketImprimable) {}
+
+    /**
+     * Construit le ticket de l'avoir au format attendu par l'agent d'impression (JSON du FactureDto desktop) :
+     * lignes créditées (quantités et prix de la facture originelle), totaux, référence et lien FNE de l'avoir.
+     * Les quantités sont positives : l'application desktop affiche tous les montants en négatif pour un avoir.
+     * <p>
+     * Ne doit JAMAIS faire échouer l'émission : l'avoir est déjà accepté par la FNE, une erreur est seulement journalisée.
+     */
+    private TicketAImprimer construireTicketAvoir(TicketVenteZino ticket, AvoirAEmettre avoir, PointVenteDto pointVente,
+                                                  String reponseFneAvoir) {
+        try {
+            FactureDto originale = avoir.originale;
+            JsonNode reponse = objectMapper.readTree(reponseFneAvoir);
+            String reference = reponse.path("reference").asText("");
+            String lien = reponse.path("token").asText("");
+
+            JsonNode origine = lireJson(originale.getDataSend());
+            JsonNode itemsFne = lireJson(originale.getReponseFNE()).path("invoice").path("items");
+
+            ObjectNode json = objectMapper.createObjectNode();
+            String numTicket = String.valueOf(ticket.getNumTicket());
+            String numeroFacture = "AVOIR_" + numTicket + "_" + (reference.isBlank() ? System.currentTimeMillis() : reference);
+
+            double taux = origine.path("totauxPayload").path("tva").has("taux")
+                    ? origine.path("totauxPayload").path("tva").path("taux").asDouble() : 18.0;
+            ArrayNode lignes = json.putArray("lignes");
+            double sommeNetHt = 0;
+            long sommeTtc = 0;
+            for (FactureAvoirPayload l : avoir.lignes) {
+                JsonNode ligneOrigine = null;
+                for (JsonNode lo : origine.path("lignes")) {
+                    if (l.getDesignation() != null && l.getDesignation().trim().equalsIgnoreCase(lo.path("produit").asText("").trim())) {
+                        ligneOrigine = lo;
+                        break;
+                    }
+                }
+                double prixUnitaire;
+                double remise;
+                String date = "";
+                if (ligneOrigine != null) {
+                    prixUnitaire = ligneOrigine.path("prixUnitaireHT").asDouble();
+                    remise = ligneOrigine.path("remise").asDouble(0);
+                    date = ligneOrigine.path("date").asText("");
+                } else {
+                    JsonNode item = null;
+                    for (JsonNode it : itemsFne) {
+                        if (l.getId() != null && l.getId().equals(it.path("id").asText(null))) {
+                            item = it;
+                            break;
+                        }
+                    }
+                    prixUnitaire = item != null ? item.path("amount").asDouble() : 0;
+                    remise = item != null ? item.path("discount").asDouble(0) : 0;
+                }
+                int quantite = l.getQuantite();
+                double brut = prixUnitaire * quantite;
+                sommeNetHt += brut * (1 - remise / 100.0);
+                // TTC calculé par unité (prix HT + TVA arrondi), comme la FNE et la caisse : 5 x 2 000 = 10 000
+                long ttcUnitaire = Math.round(prixUnitaire * (1 + taux / 100.0));
+                sommeTtc += Math.round(ttcUnitaire * quantite * (1 - remise / 100.0));
+
+                ObjectNode n = lignes.addObject();
+                n.put("date", date);
+                n.put("produit", l.getDesignation());
+                n.put("quantite", quantite);
+                n.put("prixUnitaireHT", prixUnitaire);
+                n.put("montantHT", brut);   // brut avant remise, comme dans les factures de vente envoyées à la FNE
+                n.put("remise", remise);
+            }
+
+            long ht = Math.round(sommeNetHt);
+            long tva = sommeTtc - ht;
+            ObjectNode totaux = json.putObject("totauxPayload");
+            totaux.put("ht", ht);
+            ObjectNode tvaNode = totaux.putObject("tva");
+            tvaNode.put("base", ht);
+            tvaNode.put("montant", tva);
+            tvaNode.put("taux", taux);
+            totaux.put("ttc", sommeTtc);
+
+            json.put("numeroFacture", numeroFacture);
+            json.put("numeroTicket", numTicket);
+            java.util.regex.Matcher m = java.util.regex.Pattern.compile("^ZINO_(.+)_\\d+$")
+                    .matcher(originale.getNumFacture() != null ? originale.getNumFacture() : "");
+            if (m.matches()) {
+                json.put("numeroTicketOrigine", m.group(1));
+            }
+            LocalDate date = ticket.getDate() != null
+                    ? ticket.getDate().toInstant().atZone(ZoneId.systemDefault()).toLocalDate()
+                    : LocalDate.now();
+            json.put("dateFacture", date.format(DateTimeFormatter.ofPattern("dd/MM/yyyy")));
+            json.put("typeFacture", TypeFacture.FACTURE_AVOIR.name());
+            json.put("typeClient", origine.path("typeClient").asText(""));
+            json.put("modePaiement", origine.path("modePaiement").asText(""));
+            json.put("pointVente", origine.path("pointVente").asText(pointVente.getNom()));
+            json.put("entreprise", origine.path("entreprise").asText(entrepriseZino));
+            JsonNode client = origine.path("clientPayload");
+            if (client.isObject()) {
+                json.set("clientPayload", client);
+            } else {
+                json.putObject("clientPayload").put("nom", originale.getNomClient() != null ? originale.getNomClient() : "");
+            }
+            json.put("referenceFNE", reference);
+            json.put("lienFNE", lien);
+            return new TicketAImprimer(numeroFacture, TypeFacture.FACTURE_AVOIR.name(), objectMapper.writeValueAsString(json));
+        } catch (Exception e) {
+            log.error("Ticket de l'avoir du ticket {} non préparé pour l'impression (avoir déjà accepté par la FNE): {}",
+                    ticket.getNumTicket(), e.getMessage(), e);
             return null;
+        }
+    }
+
+    private JsonNode lireJson(String contenu) {
+        try {
+            return contenu == null || contenu.isBlank() ? objectMapper.createObjectNode() : objectMapper.readTree(contenu);
+        } catch (Exception e) {
+            return objectMapper.createObjectNode();
         }
     }
 }
