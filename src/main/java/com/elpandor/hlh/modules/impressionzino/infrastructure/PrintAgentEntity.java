@@ -48,6 +48,13 @@ public class PrintAgentEntity {
     @Column(name = "actif", nullable = false)
     private boolean actif;
 
+    /** Suppression logique : l'agent n'apparaît plus et ne peut plus s'authentifier, mais reste en base (historique des jobs). */
+    @Column(name = "supprime", nullable = false, columnDefinition = "BOOLEAN NOT NULL DEFAULT FALSE")
+    private boolean supprime;
+
+    @Column(name = "date_suppression")
+    private LocalDateTime dateSuppression;
+
     /** Dernier contact de l'agent (chaque poll le met à jour) : sert à détecter un poste hors ligne. */
     @Column(name = "last_seen_at")
     private LocalDateTime lastSeenAt;

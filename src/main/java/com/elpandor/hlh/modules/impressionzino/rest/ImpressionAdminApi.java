@@ -13,9 +13,11 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.GrantedAuthority;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -46,6 +48,9 @@ public class ImpressionAdminApi {
     private String[] rolesAdmin;
 
     public record CreerAgentRequest(String agentId, String codeEtablissement) {
+    }
+
+    public record ModifierAgentRequest(String agentId, String codeEtablissement) {
     }
 
     public record AgentResume(String agentId, String codeEtablissement, boolean actif,
@@ -107,6 +112,26 @@ public class ImpressionAdminApi {
         exigerAdmin(authentication);
         return reponseAvecCle(agentAdminService.creer(request.agentId(), request.codeEtablissement()),
                 HttpStatus.CREATED, "Agent créé");
+    }
+
+    /** Modifie l'identifiant et/ou le code établissement d'un agent (la clé d'API reste valable). */
+    @PutMapping("/agents/{agentId}")
+    public ResponseEntity<Map<String, Object>> modifierAgent(Authentication authentication,
+                                                             @PathVariable("agentId") String agentId,
+                                                             @RequestBody ModifierAgentRequest request) {
+        exigerAdmin(authentication);
+        AgentResume agent = AgentResume.from(
+                agentAdminService.modifier(agentId, request.agentId(), request.codeEtablissement()));
+        return Utilities.createSuccessResponse(HttpStatus.OK, agent, "Agent modifié");
+    }
+
+    /** Suppression logique d'un agent (désactivé, masqué, clé inutilisable). */
+    @DeleteMapping("/agents/{agentId}")
+    public ResponseEntity<Map<String, Object>> supprimerAgent(Authentication authentication,
+                                                              @PathVariable("agentId") String agentId) {
+        exigerAdmin(authentication);
+        agentAdminService.supprimer(agentId);
+        return Utilities.createSuccessResponse(HttpStatus.OK, (Object) null, "Agent supprimé");
     }
 
     @PostMapping("/agents/{agentId}/rotate-key")

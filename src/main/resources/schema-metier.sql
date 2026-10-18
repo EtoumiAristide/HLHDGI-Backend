@@ -154,6 +154,9 @@ CREATE TABLE IF NOT EXISTS print_agents (
     CONSTRAINT uk_print_agents_agent_id UNIQUE (agent_id)
 );
 CREATE UNIQUE INDEX IF NOT EXISTS idx_print_agents_cle ON print_agents(api_key_hash);
+-- Suppression logique des agents (migration des bases existantes)
+ALTER TABLE print_agents ADD COLUMN IF NOT EXISTS supprime BOOLEAN NOT NULL DEFAULT FALSE;
+ALTER TABLE print_agents ADD COLUMN IF NOT EXISTS date_suppression TIMESTAMP;
 
 COMMENT ON TABLE print_jobs IS 'File d''impression des tickets : un job par facture acceptée par la FNE, routé par code_etablissement';
 COMMENT ON COLUMN print_jobs.statut IS 'PENDING, DISPATCHED, PRINTED, FAILED';

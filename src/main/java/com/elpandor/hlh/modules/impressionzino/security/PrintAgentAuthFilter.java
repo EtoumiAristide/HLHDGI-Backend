@@ -41,7 +41,7 @@ public class PrintAgentAuthFilter extends OncePerRequestFilter {
         String cle = request.getHeader(HEADER);
         Optional<PrintAgentEntity> agent = (cle == null || cle.isBlank())
                 ? Optional.empty()
-                : agents.findByApiKeyHashAndActifTrue(PrintAgentAdminService.hash(cle.trim()));
+                : agents.findByApiKeyHashAndActifTrueAndSupprimeFalse(PrintAgentAdminService.hash(cle.trim()));
 
         if (agent.isEmpty()) {
             response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);

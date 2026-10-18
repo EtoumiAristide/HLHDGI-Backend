@@ -13,6 +13,7 @@ import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.security.SecureRandom;
+import java.time.LocalDateTime;
 import java.util.Base64;
 import java.util.HexFormat;
 import java.util.List;
@@ -72,13 +73,54 @@ public class PrintAgentAdminService {
         log.info("Agent d'impression {} révoqué", agent.getAgentId());
     }
 
+    /**
+     * Modifie l'identifiant et/ou le code établissement d'un agent. La clé d'API est inchangée : le poste continue de
+     * fonctionner sans reconfiguration. Les jobs déjà en file suivent le nouveau code (routage par établissement).
+     */
+    @Transactional
+    public PrintAgentEntity modifier(String agentIdActuel, String nouvelAgentId, String codeEtablissement) {
+        PrintAgentEntity agent = trouver(agentIdActuel);
+        String id = nouvelAgentId == null ? "" : nouvelAgentId.trim();
+        String code = CodeEtablissement.normaliser(codeEtablissement);
+        if (id.isEmpty() || code == null) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "agentId et codeEtablissement sont obligatoires");
+        }
+        if (!id.equals(agent.getAgentId())) {
+            repository.findByAgentId(id).ifPresent(autre -> {
+                throw new ResponseStatusException(HttpStatus.CONFLICT, "Un agent « " + id + " » existe déjà");
+            });
+            agent.setAgentId(id);
+        }
+        agent.setCodeEtablissement(code);
+        log.info("Agent d'impression {} modifié (établissement {})", agent.getAgentId(), code);
+        return agent;
+    }
+
+    /**
+     * Suppression logique : l'agent est désactivé, masqué des listes et sa clé ne fonctionne plus. La ligne est
+     * conservée. Son identifiant est libéré (suffixe horodaté) pour permettre de recréer plus tard un agent du même nom.
+     */
+    @Transactional
+    public void supprimer(String agentId) {
+        PrintAgentEntity agent = trouver(agentId);
+        String ancien = agent.getAgentId();
+        String base = ancien.length() > 60 ? ancien.substring(0, 60) : ancien;
+        agent.setActif(false);
+        agent.setSupprime(true);
+        agent.setDateSuppression(LocalDateTime.now());
+        agent.setAgentId(base + "~supprime~" + System.currentTimeMillis());
+        log.info("Agent d'impression {} supprimé (logiquement)", ancien);
+    }
+
+    /** Agents non supprimés. */
     @Transactional(readOnly = true)
     public List<PrintAgentEntity> lister() {
-        return repository.findAll();
+        return repository.findBySupprimeFalseOrderByDateCreationDesc();
     }
 
     private PrintAgentEntity trouver(String agentId) {
         return repository.findByAgentId(agentId == null ? "" : agentId.trim())
+                .filter(a -> !a.isSupprime())
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Agent d'impression inconnu"));
     }
 
